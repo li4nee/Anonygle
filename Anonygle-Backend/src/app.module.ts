@@ -6,6 +6,7 @@ import { AppData } from "./config/db.config";
 import { SharedModule } from "./shared/shared.module";
 import { RateLimitMiddleware } from "./middleware/ratelimit.middleware";
 import { RepoModule } from "./repo/repo.module";
+import { WebsocketGateway } from './websocket/websocket.gateway';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { RepoModule } from "./repo/repo.module";
     RepoModule,
     SharedModule
   ],
-  providers: [AppService,],
+  providers: [AppService,WebsocketGateway,],
   exports: [SharedModule],
   controllers: [AppController],
 })
