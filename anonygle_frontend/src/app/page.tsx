@@ -1,9 +1,9 @@
-import ChatButton from "../../components/chat/chatbutton";
+import Link from "next/link";
 
 export default function App() {
     return (
         <div className="flex flex-col items-center justify-center h-screen">
-           <ChatButton />
+          <Link href={"/chat"} className="hover:cursor-pointer">GO TO /chat</Link>
         </div>
     )
 }
