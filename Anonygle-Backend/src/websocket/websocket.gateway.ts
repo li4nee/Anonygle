@@ -3,8 +3,8 @@ import { ConnectedSocket, MessageBody, OnGatewayDisconnect, SubscribeMessage, We
 import { Server, Socket } from 'socket.io'
 import { v4 as UUID } from 'uuid'
 const waitingQueue: string[] = []
-const pairings: Record<string, string> = {}
-const rooms : Record<string, string[]> = {}
+const rooms = new Map<string, string[]>()
+const clientToRoom = new Map<string, string>()
 @WebSocketGateway({cors: {origin: '*'}})
 export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
 
@@ -20,20 +20,19 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
   @SubscribeMessage('message')
   onNewMessageEvent(@MessageBody() body :string,@ConnectedSocket()client:Socket)
   {
-    console.log('New message from client:', body)
-    let roomId = Object.keys(rooms).find((room) => rooms[room].includes(client.id))
-    if (!roomId) {
+    let roomId = clientToRoom.get(client.id)
+    let roomMembers = roomId ? rooms.get(roomId) : undefined
+    if (!roomMembers || roomMembers?.length==0) {
       client.emit('error', { message: 'You are not in a room' })
       return
     }
-    const roomMembers = rooms[roomId]
-    const otherMembers = roomMembers.filter((member) => member !== client.id)
-    if (otherMembers.length === 0) {
+    let otherMembers = roomMembers?.filter((member) => member !== client.id)
+    if (otherMembers?.length === 0) {
       client.emit('error', { message: 'No other members in the room' })
       return
     }
-    const otherMemberId = otherMembers[0]
-    this.Server.to(otherMemberId).emit('new-message', { message: body })
+    let otherMemberId = otherMembers?otherMembers[0]:null;
+    otherMemberId ? this.Server.to(otherMemberId).emit('new-message', { message: body }):null
   }
 
 
@@ -61,31 +60,13 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
     this.handleDisconnection(client)
   }
 
-  @SubscribeMessage('join-room')
-  handleJoinRoom(@MessageBody() roomId: string, @ConnectedSocket() client: Socket) {
-    // if (!rooms[roomId]) {
-    //   client.emit('error', { message: 'Room not found' })
-    //   return 
-    // }
-    // if (rooms[roomId].includes(client.id)) {
-    //   client.emit('error', { message: 'You are already in this room' })
-    //   return
-    // }
-    // if (rooms[roomId].length >= 2) {
-    //   client.emit('error', { message: 'Room is full' })
-    //   return
-    // }
-    rooms[roomId].push(client.id)
-    client.join(roomId)
-  }
 
   @SubscribeMessage('cancel-match-making')
   onCancelMatchMaking(@ConnectedSocket() client: Socket) {
-    console.log('Cancelling matchmaking for client:', client.id)
     const index = waitingQueue.indexOf(client.id)
-    if (pairings[client.id]) {
-      client.emit('error', { message: 'You are already in a match' })
-      return
+    if(clientToRoom.get(client.id))
+    {
+      return client.emit("error",{message:"You are already in a room"})
     }
     if (index !== -1) {
       waitingQueue.splice(index, 1)
@@ -93,49 +74,114 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
     }
   }
 
+  @SubscribeMessage('offer-connection')
+  handleOffer(@ConnectedSocket() client: Socket, @MessageBody() data: { offer: RTCSessionDescriptionInit }) {
+    const partnerId = this.checkForRoomAndReturnPartnerId(client)
+    if (partnerId) {
+      this.Server.to(partnerId).emit('incomming-offer-connection', { offer: data.offer })
+    }
+    else
+    {
+      client.emit("error",{message:"Not joined in any room"})
+    }
+  }
+
+  @SubscribeMessage('answer')
+  handleAnswer(@ConnectedSocket() client: Socket, @MessageBody() data: { answer: RTCSessionDescriptionInit }) {
+    const partnerId = this.checkForRoomAndReturnPartnerId(client)
+    if (partnerId) {
+      this.Server.to(partnerId).emit('answer-reply', { answer: data.answer })
+    }
+    else
+    {
+      client.emit("error",{message:"Not joined in any room"})
+    }
+  }
+
+  @SubscribeMessage('ice-candidate')
+  handleIceCandidate(@ConnectedSocket() client: Socket, @MessageBody() data: { candidate: RTCIceCandidateInit }) {
+    const partnerId = this.checkForRoomAndReturnPartnerId(client)
+    if (partnerId) {
+      this.Server.to(partnerId).emit('ice-candidate', { candidate: data.candidate })
+    }
+    else
+    {
+      client.emit("error",{message:"Not joined in any room"})
+    }
+  }
+
+  private checkForRoomAndReturnPartnerId(client: Socket):string | undefined {
+    const roomId = clientToRoom.get(client.id)
+    if (!roomId) 
+      return
+    return rooms.get(roomId)?.find(id => id !== client.id)
+  }
+
 
   private handleMatchMaking(client: Socket) {
-    if (pairings[client.id]) {
-      client.emit('error', { message: 'You are already in a match' })
-      return
+    let roomId = clientToRoom.get(client.id)
+    if (roomId) {
+      client.emit('error', { message: 'You are already in a room' })
+      return 
     }
     if(waitingQueue.length > 0) {
       const partnerId = waitingQueue.shift()
       if (partnerId) {
-        pairings[client.id] = partnerId
-        pairings[partnerId] = client.id
         const roomId = UUID()
-        rooms[roomId] = [client.id, partnerId]
-        client.emit('match-found', { roomId})
-        this.Server.to(partnerId).emit('match-found', { roomId })
+        rooms.set(roomId,[client.id, partnerId])
+        clientToRoom.set(client.id, roomId)
+        clientToRoom.set(partnerId, roomId)
+        const partnerSocket = this.Server.sockets.sockets.get(partnerId)
+        if (partnerSocket) {
+          client.join(roomId)
+          partnerSocket.join(roomId)
+          client.emit('match-found', { roomId})
+          partnerSocket.emit('match-found', { roomId })
+        }
+        this.updateOnlineUsers()
       }  
     }
     else{
       waitingQueue.push(client.id)
       client.emit('waiting-for-match')
+      this.updateOnlineUsers()
     }
   }
   
   private handleDisconnection(client: Socket) {
-    const partnerId = pairings[client.id]
-    if (partnerId) {
-      this.Server.to(partnerId).emit('partner-disconnected', { message: 'Your partner has disconnected' })
-      delete pairings[partnerId]
-      delete pairings[client.id]
+    let roomId = clientToRoom.get(client.id)
+    if (roomId) {
+      client.leave(roomId)
+      clientToRoom.delete(client.id)
+      let roomMembers = rooms.get(roomId)
+      const partnerId = roomMembers?.find((member) => member !== client.id)
+      if (partnerId) {
+        clientToRoom.delete(partnerId)
+        let partnerSocket = this.Server.sockets.sockets.get(partnerId)
+        if(partnerSocket)
+        { 
+          partnerSocket.leave(roomId)
+          partnerSocket.emit('partner-disconnected', { message: 'Your partner has disconnected' })
+        }
+      }
     }
-    this.cleanUpAfterDisconnection(client)
-    client.disconnect()
+    this.cleanUpAfterDisconnection(client,roomId )
+    this.updateOnlineUsers()
+    
   }
 
-  private cleanUpAfterDisconnection(client: Socket) {
-    const roomId = Object.keys(rooms).find((room) => rooms[room].includes(client.id))
+  private cleanUpAfterDisconnection(client: Socket,roomId:string | undefined) {
     if (roomId) {
-      delete rooms[roomId]
+      rooms.delete(roomId)
     }
     const index = waitingQueue.indexOf(client.id)
     if (index !== -1) {
       waitingQueue.splice(index, 1)
     }
+  }
+
+  private updateOnlineUsers() {
+    this.Server.emit('online-users', this.Server.engine.clientsCount)
   }
 
 }

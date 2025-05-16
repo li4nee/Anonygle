@@ -1,97 +1,114 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Video, VideoOff, SkipForward } from "lucide-react"
+import { useState, useEffect} from "react"
+import { VideoOff, SkipForward } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import useSocketIo from "../../../hook/socket/socketIo"
 import { ChatStatus, Message } from "../../../typings/base.typings"
 import ChatInterface from "../../../components/chat/chatinterface"
 import { cn } from "@/lib/utils"
+import { useSocket } from "../../../context/socket.context"
+import { useWebRTC } from "../../../context/webRtc.context"
+import StreamVideo from "../../../components/webrtc/video.component"
 
 export default function ChatPage() {
-  const { socket } = useSocketIo()
+  const { socket } = useSocket()
   const [status, setStatus] = useState<ChatStatus>("idle")
   const [messages, setMessages] = useState<Message[]>([])
-  const [error, setError] = useState<string | null>(null)
   const [noOffOnline, setNoOfOnline] = useState(0)
+  const {createOffer,createAnswer,handleIncommingAnswer} = useWebRTC()
+  const [myStream,setMyStream] = useState<MediaStream|null>(null)
+
+  const disconnectChat = () => {
+    socket?.emit("disconnect-match-making")
+    setMessages([])
+    setStatus("idle")
+  }
+
   const startChat = () => {
     socket?.emit("start-match-making")
     setStatus("waiting")
   }
 
-  const handleOnlineUsers = (count: number) => {
-    setNoOfOnline(count)
-  }
-
-  const cancelMatchmaking = () => {
-    socket?.emit("cancel-match-making")
-    setStatus("idle")
-  }
-
-  const sendMessage = (text: string) => {
-    if (socket) {
-      socket.emit("message", text)
-      setMessages(prev => [...prev, { content: text, fromSelf: true }])
-    }
-  }
-
-  const disconnectChat = () => {
-    socket?.emit("disconnect-match-making")
-    setStatus("idle")
-  }
-
   const nextChat = () => {
     socket?.emit("next-match-making")
-    setStatus("waiting")
+    setMessages([])
+    setStatus("waiting") 
+  }
+
+  const setUpMyDevice = async ()=>{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true,video:true})
+    setMyStream(stream)
   }
 
   useEffect(() => {
-    const handleMatchFound = ({ roomId }: { roomId: string }) => {
-      socket?.emit("join-room", roomId)
-      setStatus("connected")
+    
+    const handleMatchFound = async () => {
+        setUpMyDevice()
+        const offer = await createOffer()
+        socket?.emit("offer-connection", { offer }) 
+        setStatus("connected");
     }
 
-    const handleError = (e: string) => {
-      setError(e)
-      setStatus("error")
+    const handleIncommingRequest = async ({offer}:{offer:RTCSessionDescriptionInit})=>{
+      const answer = await createAnswer(offer)
+      socket?.emit("answer",{answer})
     }
 
-    const handlePartnerDisconnected = () => {
-      setStatus("disconnected")
+    const manageIncommingOfferAnswer = async ({answer}:{answer:RTCSessionDescriptionInit})=>{
+      handleIncommingAnswer(answer)
     }
 
-    const handleIncomingMessage = ({ message }: { message: string }) => {
-      setMessages(prev => [...prev, { content: message, fromSelf: false }])
-    }
+
+    socket?.on("incomming-offer-connection",(offer)=>{
+        handleIncommingRequest(offer)
+    })
+    
+    socket?.on("answer-reply",manageIncommingOfferAnswer)
 
     socket?.on("match-found", handleMatchFound)
-    socket?.on("error", handleError)
-    socket?.on("partner-disconnected", handlePartnerDisconnected)
-    socket?.on("new-message", handleIncomingMessage)
-    socket?.on("online-users", handleOnlineUsers)
+
+    socket?.on("new-message", ({ message }: { message: string }) => {
+      setMessages(prev => [...prev, { content: message, fromSelf: false }])
+    })
+    socket?.on("partner-disconnected", () => {
+      setStatus("disconnected")
+      setMessages([])
+    })
+    socket?.on("online-users", setNoOfOnline)
+
     return () => {
-      socket?.off("match-found", handleMatchFound)
-      socket?.off("error", handleError)
-      socket?.off("partner-disconnected", handlePartnerDisconnected)
-      socket?.off("new-message", handleIncomingMessage)
-      socket?.off("online-users", handleOnlineUsers)
+      socket?.off("match-found")
+      socket?.off("new-message")
+      socket?.off("partner-disconnected")
+      socket?.off("online-users")
+      socket?.off("offer-connection")
+      socket?.off("incomming-offer-connection")
+      socket?.off("answer-reply")
     }
-  }, [socket])
+  }, [socket,status,createOffer,createAnswer,handleIncommingAnswer])
+
+  const sendMessage = (text: string) => {
+    socket?.emit("message", text)
+    setMessages(prev => [...prev, { content: text, fromSelf: true }])
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
       <div className="container mx-auto py-10 px-6">
         <h1 className="text-4xl font-bold text-center mb-10 text-white">Anonygle</h1>
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           <div className="w-full flex flex-col">
             <div className="aspect-video bg-black rounded-lg shadow-lg overflow-hidden relative mb-6 h-[500px]">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-gray-500 flex flex-col items-center">
-                  <Video size={75} className="mb-3 opacity-30" />
-                  <p className="text-lg opacity-50">Camera disconnected</p>
-                </div>
-              </div>
+              {
+                myStream && 
+                <StreamVideo stream={myStream} muted autoPlay className="absolute w-48 h-32 bottom-4 right-4 z-10 border border-white rounded-md"/>
+              }
+              
+              <video
+                // ref={remoteVideoRef}
+                autoPlay
+                className="w-full h-full object-cover"
+              />
               <div className="absolute top-6 left-6 flex items-center">
                 <div
                   className={cn(
@@ -115,7 +132,7 @@ export default function ChatPage() {
             </div>
 
             <div className="flex justify-between gap-6 mb-6">
-              <Button variant="outline" size="lg" className="flex-1 bg-gray-800 border-gray-700 text-white hover:bg-gray-700 text-lg py-6">
+              <Button variant="outline" size="lg" className="flex-1 bg-gray-800 border-gray-700 text-white hover:bg-gray-700 text-lg py-6" onClick={disconnectChat}>
                 <VideoOff className="mr-3 h-6 w-6" />
                 Stop
               </Button>
@@ -129,11 +146,10 @@ export default function ChatPage() {
           <div className="w-full max-w-md mx-auto lg:mx-0 lg:ml-auto">
             <ChatInterface
               status={status}
-              error={error}
               messages={messages}
               onSendMessage={sendMessage}
               onStart={startChat}
-              onCancel={cancelMatchmaking}
+              onCancel={() => setStatus("idle")}
               onDisconnect={disconnectChat}
               onNext={nextChat}
             />
