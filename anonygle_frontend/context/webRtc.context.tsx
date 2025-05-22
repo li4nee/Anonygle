@@ -30,19 +30,23 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
   const createOffer = useCallback(async () => {
     if (!peer) return null;
     const offer = await peer.createOffer();
-    await peer.setLocalDescription(offer);
+    await peer.setLocalDescription(new RTCSessionDescription(offer));
     return offer;
   }, [peer]);
 
   const createAnswer =  useCallback(async (offer:RTCSessionDescriptionInit)=>{
+    if (!peer) 
+      return undefined;
     await peer?.setRemoteDescription(offer)
     const answer = await peer?.createAnswer()
-    await peer?.setLocalDescription(answer)
+    await peer?.setLocalDescription(new RTCSessionDescription(answer))
     return answer
   },[peer])
 
   const handleIncommingAnswer = useCallback(async (answer:RTCSessionDescriptionInit)=>{
-        await peer?.setRemoteDescription(answer)
+    if (!peer)
+      return
+    await peer?.setRemoteDescription(new RTCSessionDescription(answer))
   },[peer])
 
   return (

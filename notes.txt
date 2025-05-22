@@ -1,0 +1,16 @@
+chrome://webrtc-internals/ for debugging webrtc
+
+
+
+Offerer: createOffer 
+  -setLocalDescription(offer)
+  - send offer to peer
+
+Answerer:
+  - setRemoteDescription(offer)
+  - createAnswer
+  - setLocalDescription(answer)
+  - send answer back
+
+Offerer:
+  - setRemoteDescription(answer) ✅ only after local offer

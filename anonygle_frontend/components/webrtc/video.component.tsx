@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-
 type StreamVideoProps = {
   stream: MediaStream | null;
   className?: string;

@@ -8,15 +8,16 @@ import ChatInterface from "../../../components/chat/chatinterface"
 import { cn } from "@/lib/utils"
 import { useSocket } from "../../../context/socket.context"
 import { useWebRTC } from "../../../context/webRtc.context"
-import StreamVideo from "../../../components/webrtc/video.component"
+import ReactPlayer from "react-player"
 
 export default function ChatPage() {
   const { socket } = useSocket()
   const [status, setStatus] = useState<ChatStatus>("idle")
   const [messages, setMessages] = useState<Message[]>([])
   const [noOffOnline, setNoOfOnline] = useState(0)
-  const {createOffer,createAnswer,handleIncommingAnswer} = useWebRTC()
+  const {peer,createOffer,createAnswer,handleIncommingAnswer} = useWebRTC()
   const [myStream,setMyStream] = useState<MediaStream|null>(null)
+  const [remoteStream,setRemoteStream] = useState<MediaStream|null>(null)
 
   const disconnectChat = () => {
     socket?.emit("disconnect-match-making")
@@ -38,24 +39,63 @@ export default function ChatPage() {
   const setUpMyDevice = async ()=>{
     const stream = await navigator.mediaDevices.getUserMedia({audio:true,video:true})
     setMyStream(stream)
+    return
   }
 
+  const sendMessage = (text: string) => {
+    socket?.emit("message", text)
+    setMessages(prev => [...prev, { content: text, fromSelf: true }])
+  }
+
+
+  /**
+   * * This useeffect handles the incoming stream from the other peer.
+   */
+
   useEffect(() => {
-    
+    peer?.addEventListener("track",async(event)=>{
+      console.log("Track event received")
+      const remoteStream = event.streams
+      if(remoteStream && remoteStream[0])
+        setRemoteStream(remoteStream[0])
+      else
+        throw new Error("No stream found")
+    })
+  },[])
+
+
+
+  /**
+   * * This useeffect le chai handles the incoming answer from the other peer.
+   * Like main main sab kam esle nai garcha
+   */
+  useEffect(() => {
     const handleMatchFound = async () => {
-        setUpMyDevice()
+        await setUpMyDevice()
+        for (const track of myStream?.getTracks() || []) {
+          if(!myStream)
+            return
+          peer?.addTrack(track, myStream)
+        }
         const offer = await createOffer()
         socket?.emit("offer-connection", { offer }) 
         setStatus("connected");
     }
 
     const handleIncommingRequest = async ({offer}:{offer:RTCSessionDescriptionInit})=>{
-      const answer = await createAnswer(offer)
+      await setUpMyDevice()
+      for (const track of myStream?.getTracks() || []) {
+        if(!myStream)
+          return
+        peer?.addTrack(track, myStream)
+      }
+      const answer = await createAnswer(offer)  
       socket?.emit("answer",{answer})
+      setStatus("connected")
     }
 
     const manageIncommingOfferAnswer = async ({answer}:{answer:RTCSessionDescriptionInit})=>{
-      handleIncommingAnswer(answer)
+        await handleIncommingAnswer(answer)
     }
 
 
@@ -63,7 +103,9 @@ export default function ChatPage() {
         handleIncommingRequest(offer)
     })
     
-    socket?.on("answer-reply",manageIncommingOfferAnswer)
+
+    socket?.on("answer-reply", manageIncommingOfferAnswer)
+    
 
     socket?.on("match-found", handleMatchFound)
 
@@ -74,8 +116,8 @@ export default function ChatPage() {
       setStatus("disconnected")
       setMessages([])
     })
-    socket?.on("online-users", setNoOfOnline)
 
+    socket?.on("online-users", setNoOfOnline)
     return () => {
       socket?.off("match-found")
       socket?.off("new-message")
@@ -84,64 +126,91 @@ export default function ChatPage() {
       socket?.off("offer-connection")
       socket?.off("incomming-offer-connection")
       socket?.off("answer-reply")
+      socket?.off("ice-candidate")
     }
-  }, [socket,status,createOffer,createAnswer,handleIncommingAnswer])
+  }, [socket,status,createOffer,createAnswer,handleIncommingAnswer,peer,myStream])
 
-  const sendMessage = (text: string) => {
-    socket?.emit("message", text)
-    setMessages(prev => [...prev, { content: text, fromSelf: true }])
-  }
+  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
       <div className="container mx-auto py-10 px-6">
         <h1 className="text-4xl font-bold text-center mb-10 text-white">Anonygle</h1>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-          <div className="w-full flex flex-col">
-            <div className="aspect-video bg-black rounded-lg shadow-lg overflow-hidden relative mb-6 h-[500px]">
-              {
-                myStream && 
-                <StreamVideo stream={myStream} muted autoPlay className="absolute w-48 h-32 bottom-4 right-4 z-10 border border-white rounded-md"/>
-              }
-              
-              <video
-                // ref={remoteVideoRef}
-                autoPlay
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-6 left-6 flex items-center">
-                <div
-                  className={cn(
-                    "h-3 w-3 m-2 rounded-full",
-                    status === "idle" && "bg-gray-400",
-                    status === "waiting" && "bg-yellow-400",
-                    status === "connected" && "bg-green-400",
-                    status === "error" && "bg-red-400",
-                  )}
-                />
-                <span className="font-medium">
-                  {status === "idle" && " Disconnected"}
-                  {status === "waiting" && " Connecting..."}
-                  {status === "connected" && " Connected"}
-                  {status === "error" && " Error"}
-                </span>
-              </div>
-              <div className="absolute top-6 right-6 bg-gray-800 bg-opacity-70 px-4 py-2 rounded-full">
-                <span className="text-gray-300 text-base">{noOffOnline} users online</span>
-              </div>
-            </div>
+        <div className="w-full flex flex-col">
+        <div className="relative w-full aspect-video bg-black rounded-2xl shadow-xl overflow-hidden mb-6 h-[500px]">        
+        {remoteStream && (
+        
+        <ReactPlayer
+          url={remoteStream}
+          playing
+          muted={false}
+          width="100%"
+          height="100%"
+          className="absolute inset-0 object-cover"
+        />
+      )} 
+        {myStream && (
+        <div className="absolute bottom-4 right-4 w-60 h-48 z-10 border-2 border-white rounded-md overflow-hidden shadow-md">
+          <ReactPlayer
+            url={myStream}
+            muted
+            playing
+            width="100%"
+            height="100%"
+          />
+        </div>
+    )}
 
-            <div className="flex justify-between gap-6 mb-6">
-              <Button variant="outline" size="lg" className="flex-1 bg-gray-800 border-gray-700 text-white hover:bg-gray-700 text-lg py-6" onClick={disconnectChat}>
-                <VideoOff className="mr-3 h-6 w-6" />
-                Stop
-              </Button>
-              <Button size="lg" className="flex-1 bg-red-600 hover:bg-red-700 text-white text-lg py-6" onClick={nextChat}>
-                <SkipForward className="mr-3 h-6 w-6" />
-                Next
-              </Button>
-            </div>
-          </div>
+        <div className="absolute top-6 left-6 flex items-center space-x-2">
+          <div
+            className={cn(
+              "h-3 w-3 rounded-full",
+              status === "idle" && "bg-gray-400",
+              status === "waiting" && "bg-yellow-400",
+              status === "connected" && "bg-green-400",
+              status === "error" && "bg-red-500",
+              status === "disconnected" && "bg-gray-400"
+            )}
+          />
+          <span className="text-white font-medium text-sm sm:text-base">
+            {status === "idle" && "Disconnected"}
+            {status === "waiting" && "Connecting..."}
+            {status === "connected" && "Connected"}
+            {status === "error" && "Error"}
+            {status === "disconnected" && "Disconnected"}
+          </span>
+        </div>
+
+        <div className="absolute top-6 right-6 bg-gray-900 bg-opacity-60 px-4 py-2 rounded-full">
+          <span className="text-white text-sm sm:text-base">
+            {noOffOnline} users online
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row justify-between gap-4 sm:gap-6 mb-6">
+        <Button
+          variant="outline"
+          size="lg"
+          className="flex-1 bg-gray-800 border-gray-700 text-white hover:bg-gray-700 text-lg py-5"
+          onClick={disconnectChat}
+        >
+          <VideoOff className="mr-3 h-6 w-6" />
+          Stop
+        </Button>
+
+        <Button
+          size="lg"
+          className="flex-1 bg-red-600 hover:bg-red-700 text-white text-lg py-5"
+          onClick={nextChat}
+        >
+          <SkipForward className="mr-3 h-6 w-6" />
+          Next
+        </Button>
+      </div>
+    </div>
+
 
           <div className="w-full max-w-md mx-auto lg:mx-0 lg:ml-auto">
             <ChatInterface

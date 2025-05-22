@@ -98,17 +98,6 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
     }
   }
 
-  @SubscribeMessage('ice-candidate')
-  handleIceCandidate(@ConnectedSocket() client: Socket, @MessageBody() data: { candidate: RTCIceCandidateInit }) {
-    const partnerId = this.checkForRoomAndReturnPartnerId(client)
-    if (partnerId) {
-      this.Server.to(partnerId).emit('ice-candidate', { candidate: data.candidate })
-    }
-    else
-    {
-      client.emit("error",{message:"Not joined in any room"})
-    }
-  }
 
   private checkForRoomAndReturnPartnerId(client: Socket):string | undefined {
     const roomId = clientToRoom.get(client.id)
@@ -136,7 +125,7 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
           client.join(roomId)
           partnerSocket.join(roomId)
           client.emit('match-found', { roomId})
-          partnerSocket.emit('match-found', { roomId })
+          // partnerSocket.emit('match-found-client', { roomId })
         }
         this.updateOnlineUsers()
       }  
