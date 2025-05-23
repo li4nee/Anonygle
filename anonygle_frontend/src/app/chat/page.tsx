@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect} from "react"
+import { useState, useEffect, useCallback} from "react"
 import { VideoOff, SkipForward } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ChatStatus, Message } from "../../../typings/base.typings"
@@ -15,12 +15,13 @@ export default function ChatPage() {
   const [status, setStatus] = useState<ChatStatus>("idle")
   const [messages, setMessages] = useState<Message[]>([])
   const [noOffOnline, setNoOfOnline] = useState(0)
-  const {peer,createOffer,createAnswer,handleIncommingAnswer} = useWebRTC()
+  const {peer,createOffer,createAnswer,handleIncommingAnswer,addIceCandidate,resetPeer} = useWebRTC()
   const [myStream,setMyStream] = useState<MediaStream|null>(null)
   const [remoteStream,setRemoteStream] = useState<MediaStream|null>(null)
 
   const disconnectChat = () => {
     socket?.emit("disconnect-match-making")
+    resetPeer()
     setMessages([])
     setStatus("idle")
   }
@@ -31,6 +32,7 @@ export default function ChatPage() {
   }
 
   const nextChat = () => {
+    resetPeer()
     socket?.emit("next-match-making")
     setMessages([])
     setStatus("waiting") 
@@ -39,7 +41,6 @@ export default function ChatPage() {
   const setUpMyDevice = async ()=>{
     const stream = await navigator.mediaDevices.getUserMedia({audio:true,video:true})
     setMyStream(stream)
-    return
   }
 
   const sendMessage = (text: string) => {
@@ -47,22 +48,89 @@ export default function ChatPage() {
     setMessages(prev => [...prev, { content: text, fromSelf: true }])
   }
 
+  /**
+   * esle chai sunera bascha icecandidate ko lagi
+   */
+  useEffect(() => {
+    const handleIceCandidate = (event: RTCPeerConnectionIceEvent) => {
+      if (event.candidate) {
+        socket?.emit("ice-candidate", { candidate: event.candidate });
+      }
+    };
+  
+    if (peer) {
+      peer.addEventListener("icecandidate", handleIceCandidate);
+    }
+  
+    return () => {
+      peer?.removeEventListener("icecandidate", handleIceCandidate);
+    };
+  }, [peer,socket]);
+
+
+  /**
+   * * This useeffect handles the incoming ice candidate from the other peer.
+   */
+  useEffect(() => {
+    const handleRemoteIceCandidate = (data: { candidate: RTCIceCandidateInit }) => {
+      addIceCandidate(data.candidate);
+    };
+  
+    socket?.on("ice-candidate", handleRemoteIceCandidate);
+  
+    return () => {
+      socket?.off("ice-candidate", handleRemoteIceCandidate);
+    };
+  }, [socket, addIceCandidate]);
+  
 
   /**
    * * This useeffect handles the incoming stream from the other peer.
    */
 
   useEffect(() => {
-    peer?.addEventListener("track",async(event)=>{
-      console.log("Track event received")
-      const remoteStream = event.streams
-      if(remoteStream && remoteStream[0])
-        setRemoteStream(remoteStream[0])
-      else
-        throw new Error("No stream found")
-    })
-  },[])
+  
+    const handleTrack = (event: RTCTrackEvent) => {
+      const remoteStream = event.streams;
+      if (remoteStream) {
+        setRemoteStream(remoteStream[0]);
+      } else {
+        console.error("No remote stream found");
+      }
+    };
+  
+    if (peer) {
+      peer.addEventListener("track", handleTrack);
+    }
+    return () => {
+      peer?.removeEventListener("track", handleTrack);
+    };
+  }, [peer]);
+  
 
+  const handleNegoNeeded = useCallback(async () => {
+    const offer = await createOffer()
+    socket?.emit("peer:nego:needed", { offer});
+  }, [socket,createOffer]);
+
+  useEffect(() => {
+    peer?.addEventListener("negotiationneeded", handleNegoNeeded);
+    return () => {
+      peer?.removeEventListener("negotiationneeded", handleNegoNeeded);
+    };
+  }, [handleNegoNeeded,peer]);
+
+  const handleNegoNeedIncomming = useCallback(
+    async ({offer}:{offer:RTCSessionDescriptionInit}) => {
+      const ans = await createAnswer(offer)
+      socket?.emit("peer:nego:done", {ans });
+    },
+    [socket,createAnswer]
+  );
+
+  const handleNegoNeedFinal = useCallback(async ({answer}:{answer:RTCSessionDescriptionInit}) => {
+    await handleIncommingAnswer(answer);
+  }, [handleIncommingAnswer]);
 
 
   /**
@@ -72,23 +140,12 @@ export default function ChatPage() {
   useEffect(() => {
     const handleMatchFound = async () => {
         await setUpMyDevice()
-        for (const track of myStream?.getTracks() || []) {
-          if(!myStream)
-            return
-          peer?.addTrack(track, myStream)
-        }
         const offer = await createOffer()
         socket?.emit("offer-connection", { offer }) 
-        setStatus("connected");
     }
 
     const handleIncommingRequest = async ({offer}:{offer:RTCSessionDescriptionInit})=>{
       await setUpMyDevice()
-      for (const track of myStream?.getTracks() || []) {
-        if(!myStream)
-          return
-        peer?.addTrack(track, myStream)
-      }
       const answer = await createAnswer(offer)  
       socket?.emit("answer",{answer})
       setStatus("connected")
@@ -96,6 +153,12 @@ export default function ChatPage() {
 
     const manageIncommingOfferAnswer = async ({answer}:{answer:RTCSessionDescriptionInit})=>{
         await handleIncommingAnswer(answer)
+        for (const track of myStream?.getTracks() || []) {
+          if(!myStream)
+            return
+          peer?.addTrack(track, myStream)
+        }
+        setStatus("connected");
     }
 
 
@@ -118,6 +181,9 @@ export default function ChatPage() {
     })
 
     socket?.on("online-users", setNoOfOnline)
+
+    socket?.on("peer:nego:needed", handleNegoNeedIncomming);
+    socket?.on("peer:nego:final", handleNegoNeedFinal);
     return () => {
       socket?.off("match-found")
       socket?.off("new-message")
@@ -126,9 +192,10 @@ export default function ChatPage() {
       socket?.off("offer-connection")
       socket?.off("incomming-offer-connection")
       socket?.off("answer-reply")
-      socket?.off("ice-candidate")
+      socket?.off("peer:nego:needed")
+      socket?.off("peer:nego:final")
     }
-  }, [socket,status,createOffer,createAnswer,handleIncommingAnswer,peer,myStream])
+  }, [socket,status,createOffer,createAnswer,handleIncommingAnswer,handleNegoNeedIncomming,handleNegoNeedFinal,peer,myStream])
 
   
 

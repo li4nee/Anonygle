@@ -42,7 +42,6 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
       this.handleMatchMaking(client)
   }
 
-
   @SubscribeMessage('next-match-making')
   onNextMatchMaking(@ConnectedSocket() client: Socket)
   {
@@ -98,6 +97,29 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
     }
   }
 
+  @SubscribeMessage('ice-candidate')
+  handleIceCandidate(client: Socket, candidate: RTCIceCandidateInit) {
+    const partnerId = this.checkForRoomAndReturnPartnerId(client) 
+    if (partnerId) {
+      this.Server.to(partnerId).emit('ice-candidate', candidate);
+    }
+  }
+
+  @SubscribeMessage('peer:nego:needed')
+  handlePeerNegoNeeded(@ConnectedSocket() client: Socket, @MessageBody() data: { offer: RTCSessionDescriptionInit }) {
+    const partnerId = this.checkForRoomAndReturnPartnerId(client)
+    if (partnerId) {
+      this.Server.to(partnerId).emit('peer:nego:needed', { offer: data.offer });
+    }
+  }
+
+  @SubscribeMessage('peer:nego:final')
+  handlePeerNegoFinal(@ConnectedSocket() client: Socket, @MessageBody() data: { answer: RTCSessionDescriptionInit }) {
+    const partnerId = this.checkForRoomAndReturnPartnerId(client)
+    if (partnerId) {
+      this.Server.to(partnerId).emit('peer:nego:final',{ answer: data.answer });
+    }
+  }
 
   private checkForRoomAndReturnPartnerId(client: Socket):string | undefined {
     const roomId = clientToRoom.get(client.id)
@@ -125,7 +147,6 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
           client.join(roomId)
           partnerSocket.join(roomId)
           client.emit('match-found', { roomId})
-          // partnerSocket.emit('match-found-client', { roomId })
         }
         this.updateOnlineUsers()
       }  
