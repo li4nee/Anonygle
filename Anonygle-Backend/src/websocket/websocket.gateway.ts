@@ -5,7 +5,7 @@ import { v4 as UUID } from 'uuid'
 const waitingQueue: string[] = []
 const rooms = new Map<string, string[]>()
 const clientToRoom = new Map<string, string>()
-@WebSocketGateway({cors: {origin: '*'}})
+@WebSocketGateway({cors: {origin: '*'},transports: ['websocket']})
 export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
 
   @WebSocketServer()
@@ -99,6 +99,7 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
 
   @SubscribeMessage('ice-candidate')
   handleIceCandidate(client: Socket, candidate: RTCIceCandidateInit) {
+    console.log("ice-request")
     const partnerId = this.checkForRoomAndReturnPartnerId(client) 
     if (partnerId) {
       this.Server.to(partnerId).emit('ice-candidate', candidate);

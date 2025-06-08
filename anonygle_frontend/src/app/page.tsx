@@ -6,6 +6,7 @@ import HeroSection from "../../components/herosection";
 import AboutSection from "../../components/aboutsection";
 import ExtraFeaturesSection from "../../components/extraFeatures";
 import ExtraSafetySection from "../../components/safetySection";
+import Link from "next/link";
 
 const Index = () => {
   return (
@@ -15,7 +16,6 @@ const Index = () => {
       <main>
         <HeroSection />
         <AboutSection/>
-        {/* <FeaturesSection /> */}
         <ExtraFeaturesSection/>
         <ExtraSafetySection/>
 
@@ -31,12 +31,14 @@ const Index = () => {
               Join thousands of people making meaningful connections every day. 
               Your next great conversation is just one click away.
             </p>
+            <Link href="/chat" className="inline-block">
             <Button 
               size="lg" 
-              className="text-xl px-12 py-8 bg-primary hover:bg-primary/90 glow-red-strong hover:glow-red-strong transition-all duration-300 transform hover:scale-105"
+              className="text-xl px-12 py-8 bg-primary hover:cursor-pointer hover:bg-primary/90 glow-red-strong hover:glow-red-strong transition-all duration-300 transform hover:scale-105"
             >
               Enter Chat Room
             </Button>
+            </Link>
           </div>
         </section>
       </main>

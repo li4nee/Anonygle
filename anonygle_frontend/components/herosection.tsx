@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Video, Play } from "lucide-react";
+import Link from "next/link";
 
 const HeroSection = () => {
   return (
@@ -41,17 +42,19 @@ const HeroSection = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+          <Link href="/chat" className="inline-block">
           <Button 
             size="lg" 
-            className="text-lg px-8 py-6 bg-primary hover:bg-primary/90 glow-red-strong hover:glow-red-strong transition-all duration-300 transform hover:scale-105 group"
+            className="text-lg px-8 py-6 hover:cursor-pointer bg-primary hover:bg-primary/90 glow-red-strong hover:glow-red-strong transition-all duration-300 transform hover:scale-105 group"
           >
             <Play className="w-6 h-6 mr-2 group-hover:animate-pulse" />
             Start Chatting
           </Button>
+          </Link>
           <Button 
             variant="outline" 
             size="lg" 
-            className="text-lg px-8 py-6 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary transition-all duration-300"
+            className="text-lg px-8 hover:cursor-pointer py-6 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary transition-all duration-300"
           >
             Learn More
           </Button>
