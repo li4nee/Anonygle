@@ -1,39 +1,43 @@
 import { OnModuleInit } from '@nestjs/common'
 import { ConnectedSocket, MessageBody, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets'
+import { RedisClientType } from 'redis'
 import { Server, Socket } from 'socket.io'
+import { RedisService } from 'src/shared/services/redis.service'
 import { v4 as UUID } from 'uuid'
-const waitingQueue: string[] = []
-const rooms = new Map<string, string[]>()
-const clientToRoom = new Map<string, string>()
 @WebSocketGateway({cors: {origin: '*'},transports: ['websocket']})
 export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
+
+  private redisClient: RedisClientType
+  private waitingQueueKey = "waitingQueue"
+  private roomsKey = "rooms"
+  private clientToRoomKey = "clientToRoom"
+  constructor(private readonly redisService: RedisService) {}
 
   @WebSocketServer()
   Server: Server
   
   onModuleInit() {
+    this.redisClient = this.redisService.getClient()
       this.Server.on("connection", (socket) => {
           console.log(socket.id, 'connected')
       })
   }
 
   @SubscribeMessage('message')
-  onNewMessageEvent(@MessageBody() body :string,@ConnectedSocket()client:Socket)
-  {
-    let roomId = clientToRoom.get(client.id)
-    let roomMembers = roomId ? rooms.get(roomId) : undefined
-    if (!roomMembers || roomMembers?.length==0) {
-      client.emit('error', { message: 'You are not in a room' })
-      return
-    }
-    let otherMembers = roomMembers?.filter((member) => member !== client.id)
-    if (otherMembers?.length === 0) {
-      client.emit('error', { message: 'No other members in the room' })
-      return
-    }
-    let otherMemberId = otherMembers?otherMembers[0]:null;
-    otherMemberId ? this.Server.to(otherMemberId).emit('new-message', { message: body }):null
+  async onNewMessageEvent(@MessageBody() body: string, @ConnectedSocket() client: Socket) {
+    const roomId = await this.redisClient.hGet(this.clientToRoomKey, client.id)
+    if (!roomId) 
+      return client.emit('error', { message: 'You are not in a room' })
+
+    const roomData = await this.redisClient.hGet(this.roomsKey, roomId)
+    const roomMembers = roomData ? JSON.parse(roomData) : []
+    const otherMemberId = roomMembers.find((id) => id !== client.id)
+    if (!otherMemberId) 
+      return client.emit('error', { message: 'No other members in the room' })
+
+    this.Server.to(otherMemberId).emit('new-message', { message: body })
   }
+
 
 
   @SubscribeMessage('start-match-making')
@@ -61,21 +65,18 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
 
 
   @SubscribeMessage('cancel-match-making')
-  onCancelMatchMaking(@ConnectedSocket() client: Socket) {
-    const index = waitingQueue.indexOf(client.id)
-    if(clientToRoom.get(client.id))
-    {
-      return client.emit("error",{message:"You are already in a room"})
-    }
-    if (index !== -1) {
-      waitingQueue.splice(index, 1)
-      client.emit('match-making-cancelled', { message: 'Matchmaking cancelled' })
-    }
+  async onCancelMatchMaking(@ConnectedSocket() client: Socket) {
+     const isInRoom = await this.redisClient.hGet(this.clientToRoomKey, client.id)
+    if (isInRoom) 
+      return client.emit('error', { message: 'You are already in a room' })
+
+    await this.redisClient.lRem(this.waitingQueueKey, 0, client.id)
+    client.emit('match-making-cancelled', { message: 'Matchmaking cancelled' })
   }
 
   @SubscribeMessage('offer-connection')
-  handleOffer(@ConnectedSocket() client: Socket, @MessageBody() data: { offer: RTCSessionDescriptionInit }) {
-    const partnerId = this.checkForRoomAndReturnPartnerId(client)
+  async handleOffer(@ConnectedSocket() client: Socket, @MessageBody() data: { offer: RTCSessionDescriptionInit }) {
+    const partnerId = await this.checkForRoomAndReturnPartnerId(client)
     if (partnerId) {
       this.Server.to(partnerId).emit('incomming-offer-connection', { offer: data.offer })
     }
@@ -86,8 +87,8 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
   }
 
   @SubscribeMessage('answer')
-  handleAnswer(@ConnectedSocket() client: Socket, @MessageBody() data: { answer: RTCSessionDescriptionInit }) {
-    const partnerId = this.checkForRoomAndReturnPartnerId(client)
+  async handleAnswer(@ConnectedSocket() client: Socket, @MessageBody() data: { answer: RTCSessionDescriptionInit }) {
+    const partnerId = await this.checkForRoomAndReturnPartnerId(client)
     if (partnerId) {
       this.Server.to(partnerId).emit('answer-reply', { answer: data.answer })
     }
@@ -98,97 +99,91 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
   }
 
   @SubscribeMessage('ice-candidate')
-  handleIceCandidate(client: Socket, candidate: RTCIceCandidateInit) {
-    console.log("ice-request")
-    const partnerId = this.checkForRoomAndReturnPartnerId(client) 
+  async handleIceCandidate(client: Socket, candidate: RTCIceCandidateInit) {
+    const partnerId = await this.checkForRoomAndReturnPartnerId(client) 
     if (partnerId) {
-      this.Server.to(partnerId).emit('ice-candidate', candidate);
+      this.Server.to(partnerId).emit('ice-candidate', candidate)
     }
   }
 
   @SubscribeMessage('peer:nego:needed')
-  handlePeerNegoNeeded(@ConnectedSocket() client: Socket, @MessageBody() data: { offer: RTCSessionDescriptionInit }) {
-    const partnerId = this.checkForRoomAndReturnPartnerId(client)
+  async handlePeerNegoNeeded(@ConnectedSocket() client: Socket, @MessageBody() data: { offer: RTCSessionDescriptionInit }) {
+    const partnerId = await this.checkForRoomAndReturnPartnerId(client)
     if (partnerId) {
-      this.Server.to(partnerId).emit('peer:nego:needed', { offer: data.offer });
+      this.Server.to(partnerId).emit('peer:nego:needed', { offer: data.offer })
     }
   }
 
   @SubscribeMessage('peer:nego:final')
-  handlePeerNegoFinal(@ConnectedSocket() client: Socket, @MessageBody() data: { answer: RTCSessionDescriptionInit }) {
-    const partnerId = this.checkForRoomAndReturnPartnerId(client)
+  async handlePeerNegoFinal(@ConnectedSocket() client: Socket, @MessageBody() data: { answer: RTCSessionDescriptionInit }) {
+    const partnerId = await this.checkForRoomAndReturnPartnerId(client)
     if (partnerId) {
-      this.Server.to(partnerId).emit('peer:nego:final',{ answer: data.answer });
+      this.Server.to(partnerId).emit('peer:nego:final',{ answer: data.answer })
     }
   }
 
-  private checkForRoomAndReturnPartnerId(client: Socket):string | undefined {
-    const roomId = clientToRoom.get(client.id)
+  private async checkForRoomAndReturnPartnerId(client: Socket): Promise<string | undefined> {
+    const roomId = await this.redisClient.hGet(this.clientToRoomKey, client.id)
     if (!roomId) 
       return
-    return rooms.get(roomId)?.find(id => id !== client.id)
+    const roomData = await this.redisClient.hGet(this.roomsKey, roomId)
+    const members = roomData ? JSON.parse(roomData) : []
+    return members.find((id) => id !== client.id)
   }
 
+  private async handleMatchMaking(client: Socket) {
+    const existingRoomId = await this.redisClient.hGet(this.clientToRoomKey, client.id)
+    if (existingRoomId) {
+      return client.emit('error', { message: 'You are already in a room' })
+    }
 
-  private handleMatchMaking(client: Socket) {
-    let roomId = clientToRoom.get(client.id)
-    if (roomId) {
-      client.emit('error', { message: 'You are already in a room' })
-      return 
-    }
-    if(waitingQueue.length > 0) {
-      const partnerId = waitingQueue.shift()
-      if (partnerId) {
-        const roomId = UUID()
-        rooms.set(roomId,[client.id, partnerId])
-        clientToRoom.set(client.id, roomId)
-        clientToRoom.set(partnerId, roomId)
-        const partnerSocket = this.Server.sockets.sockets.get(partnerId)
-        if (partnerSocket) {
-          client.join(roomId)
-          partnerSocket.join(roomId)
-          client.emit('match-found', { roomId})
-        }
-        this.updateOnlineUsers()
-      }  
-    }
-    else{
-      waitingQueue.push(client.id)
+    const partnerId = await this.redisClient.lPop(this.waitingQueueKey)
+    if (partnerId) {
+      const newRoomId = UUID()
+      const members = [client.id, partnerId]
+
+      await this.redisClient.hSet(this.roomsKey, newRoomId, JSON.stringify(members))
+      await this.redisClient.hSet(this.clientToRoomKey, client.id, newRoomId)
+      await this.redisClient.hSet(this.clientToRoomKey, partnerId, newRoomId)
+
+      const partnerSocket = this.Server.sockets.sockets.get(partnerId)
+      if (partnerSocket) {
+        client.join(newRoomId)
+        partnerSocket.join(newRoomId)
+        client.emit('match-found', { roomId: newRoomId })
+      }
+    } else {
+      await this.redisClient.rPush(this.waitingQueueKey, client.id)
       client.emit('waiting-for-match')
-      this.updateOnlineUsers()
     }
+
+    this.updateOnlineUsers()
   }
   
-  private handleDisconnection(client: Socket) {
-    let roomId = clientToRoom.get(client.id)
+  private async handleDisconnection(client: Socket) {
+    const roomId = await this.redisClient.hGet(this.clientToRoomKey, client.id)
     if (roomId) {
       client.leave(roomId)
-      clientToRoom.delete(client.id)
-      let roomMembers = rooms.get(roomId)
-      const partnerId = roomMembers?.find((member) => member !== client.id)
+      await this.redisClient.hDel(this.clientToRoomKey, client.id)
+
+      const roomData = await this.redisClient.hGet(this.roomsKey, roomId)
+      const members = roomData ? JSON.parse(roomData) : []
+      const partnerId = members.find((id) => id !== client.id)
+
       if (partnerId) {
-        clientToRoom.delete(partnerId)
-        let partnerSocket = this.Server.sockets.sockets.get(partnerId)
-        if(partnerSocket)
-        { 
+        await this.redisClient.hDel(this.clientToRoomKey, partnerId)
+        const partnerSocket = this.Server.sockets.sockets.get(partnerId)
+        if (partnerSocket) {
           partnerSocket.leave(roomId)
           partnerSocket.emit('partner-disconnected', { message: 'Your partner has disconnected' })
         }
       }
-    }
-    this.cleanUpAfterDisconnection(client,roomId )
-    this.updateOnlineUsers()
-    
-  }
 
-  private cleanUpAfterDisconnection(client: Socket,roomId:string | undefined) {
-    if (roomId) {
-      rooms.delete(roomId)
+      await this.redisClient.hDel(this.roomsKey, roomId)
     }
-    const index = waitingQueue.indexOf(client.id)
-    if (index !== -1) {
-      waitingQueue.splice(index, 1)
-    }
+
+    await this.redisClient.lRem(this.waitingQueueKey, 0, client.id) // remove all the occurance of client.id in list
+    this.updateOnlineUsers()
   }
 
   private updateOnlineUsers() {
