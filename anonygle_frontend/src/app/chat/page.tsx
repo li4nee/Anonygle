@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect} from "react"
+import { useState, useEffect, useCallback} from "react"
 import { VideoOff, SkipForward } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ChatStatus, Message } from "../../../typings/base.typings"
@@ -40,29 +40,29 @@ export default function ChatPage() {
   }
 
 
-  // const handleNegoNeeded = useCallback(async () => {
-  //   const offer = await createOffer()
-  //   socket?.emit("peer:nego:needed", { offer});
-  // }, [socket,createOffer]);
+  const handleNegoNeeded = useCallback(async () => {
+    const offer = await createOffer()
+    socket?.emit("peer:nego:needed", { offer});
+  }, [socket,createOffer]);
 
-  // useEffect(() => {
-  //   peer?.addEventListener("negotiationneeded", handleNegoNeeded);
-  //   return () => {
-  //     peer?.removeEventListener("negotiationneeded", handleNegoNeeded);
-  //   };
-  // }, [handleNegoNeeded,peer]);
+  useEffect(() => {
+    peer?.addEventListener("negotiationneeded", handleNegoNeeded);
+    return () => {
+      peer?.removeEventListener("negotiationneeded", handleNegoNeeded);
+    };
+  }, [handleNegoNeeded,peer]);
 
-  // const handleNegoNeedIncomming = useCallback(
-  //   async ({offer}:{offer:RTCSessionDescriptionInit}) => {
-  //     const ans = await createAnswer(offer)
-  //     socket?.emit("peer:nego:done", {ans });
-  //   },
-  //   [socket,createAnswer]
-  // );
+  const handleNegoNeedIncomming = useCallback(
+    async ({offer}:{offer:RTCSessionDescriptionInit}) => {
+      const ans = await createAnswer(offer)
+      socket?.emit("peer:nego:done", {ans });
+    },
+    [socket,createAnswer]
+  );
 
-  // const handleNegoNeedFinal = useCallback(async ({answer}:{answer:RTCSessionDescriptionInit}) => {
-  //   await handleIncommingAnswer(answer);
-  // }, [handleIncommingAnswer]);
+  const handleNegoNeedFinal = useCallback(async ({answer}:{answer:RTCSessionDescriptionInit}) => {
+    await handleIncommingAnswer(answer);
+  }, [handleIncommingAnswer]);
 
 
   /**
@@ -104,9 +104,8 @@ export default function ChatPage() {
     })
 
     socket?.on("online-users", setNoOfOnline)
-
-    // socket?.on("peer:nego:needed", handleNegoNeedIncomming);
-    // socket?.on("peer:nego:final", handleNegoNeedFinal);
+    socket?.on("peer:nego:needed", handleNegoNeedIncomming);
+    socket?.on("peer:nego:final", handleNegoNeedFinal);
     return () => {
       socket?.off("match-found")
       socket?.off("new-message")
@@ -118,7 +117,7 @@ export default function ChatPage() {
       socket?.off("peer:nego:needed")
       socket?.off("peer:nego:final")
     }
-  }, [socket,status,createOffer,createAnswer,handleIncommingAnswer,,peer,myStream])
+  }, [socket,status,createOffer,createAnswer,handleIncommingAnswer,handleNegoNeedIncomming,handleNegoNeedFinal,peer,myStream])
 
   
 

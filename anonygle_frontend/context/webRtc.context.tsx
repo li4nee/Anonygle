@@ -133,10 +133,18 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const handleRemoteIceCandidate = (data: { candidate: RTCIceCandidateInit }) => {
-      if(!data.candidate || (!data.candidate.sdpMid && data.candidate.sdpMLineIndex === undefined)) 
-      addIceCandidate(data.candidate);
-    };
-  
+    if (!remoteDescriptionSet.current)
+      return console.warn("Cannot add ICE candidate before remote description is set");
+    const { candidate } = data;
+    if (!candidate) 
+      return;
+    if (candidate.sdpMid !== null && candidate.sdpMid !== undefined) {
+      addIceCandidate(candidate);
+    } else if (candidate.sdpMLineIndex !== null && candidate.sdpMLineIndex !== undefined) {
+      addIceCandidate(candidate);
+    }
+  };
+
     socket?.on("ice-candidate", handleRemoteIceCandidate);
   
     return () => {
