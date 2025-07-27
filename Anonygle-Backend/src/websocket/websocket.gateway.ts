@@ -2,6 +2,7 @@ import { OnModuleInit } from '@nestjs/common'
 import { ConnectedSocket, MessageBody, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets'
 import { RedisClientType } from 'redis'
 import { Server, Socket } from 'socket.io'
+import { Logger } from 'src/shared/services/logger.service'
 import { RedisService } from 'src/shared/services/redis.service'
 import { v4 as UUID } from 'uuid'
 @WebSocketGateway({cors: {origin: '*'},transports: ['websocket']})
@@ -11,78 +12,91 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
   private waitingQueueKey = "waitingQueue"
   private roomsKey = "rooms"
   private clientToRoomKey = "clientToRoom"
-  constructor(private readonly redisService: RedisService) {}
+  constructor(private readonly redisService: RedisService,private readonly logger: Logger) {}
 
   @WebSocketServer()
   Server: Server
   
   onModuleInit() {
     this.redisClient = this.redisService.getClient()
-      this.Server.on("connection", (socket) => {
-          console.log(socket.id, 'connected')
-      })
+    
+    this.Server.on("connection", (socket) => {
+      this.logEvents('connection', socket, 'Client connected', false);
+      console.log(socket.id, 'connected');
+    })
+
   }
 
   @SubscribeMessage('message')
   async onNewMessageEvent(@MessageBody() body: string, @ConnectedSocket() client: Socket) {
     const roomId = await this.redisClient.hGet(this.clientToRoomKey, client.id)
-    if (!roomId) 
+    if (!roomId)
+    { 
+      this.logEvents('message', client, 'You are not in a room', true);
       return client.emit('error', { message: 'You are not in a room' })
+    }
 
     const roomData = await this.redisClient.hGet(this.roomsKey, roomId)
     const roomMembers = roomData ? JSON.parse(roomData) : []
     const otherMemberId = roomMembers.find((id) => id !== client.id)
-    if (!otherMemberId) 
-      return client.emit('error', { message: 'No other members in the room' })
+    if (!otherMemberId) {
+      this.logEvents('message', client, 'No other members in the room', true);
+      return client.emit('error', { message: 'No other members in the room' });
+    }
 
-    this.Server.to(otherMemberId).emit('new-message', { message: body })
+    return this.logEvents('message', client, `Message sent to ${otherMemberId}`, false);
   }
 
 
 
   @SubscribeMessage('start-match-making')
-  onStartMatchMaking(@ConnectedSocket() client: Socket) 
+  async onStartMatchMaking(@ConnectedSocket() client: Socket) 
   { 
-      this.handleMatchMaking(client)
+      await this.handleMatchMaking(client)
   }
 
   @SubscribeMessage('next-match-making')
-  onNextMatchMaking(@ConnectedSocket() client: Socket)
+  async onNextMatchMaking(@ConnectedSocket() client: Socket)
   {
-    this.handleDisconnection(client)
-    this.handleMatchMaking(client)
+    await this.handleDisconnection(client)
+    await this.handleMatchMaking(client)
   }
 
   @SubscribeMessage('disconnect-match-making')
-  onDisconnect(@ConnectedSocket() client: Socket) {
-    this.handleDisconnection(client)
+  async onDisconnect(@ConnectedSocket() client: Socket) {
+    await this.handleDisconnection(client)
   }
 
 
-  handleDisconnect(client: Socket) {
-    this.handleDisconnection(client)
+  async handleDisconnect(client: Socket) {
+    await this.handleDisconnection(client)
   }
 
 
   @SubscribeMessage('cancel-match-making')
   async onCancelMatchMaking(@ConnectedSocket() client: Socket) {
-     const isInRoom = await this.redisClient.hGet(this.clientToRoomKey, client.id)
-    if (isInRoom) 
-      return client.emit('error', { message: 'You are already in a room' })
+    const isInRoom = await this.redisClient.hGet(this.clientToRoomKey, client.id)
+    if (isInRoom) {
+      this.logEvents('cancel-match-making', client, 'You are already in a room', true);
+      return client.emit('error', { message: 'You are already in a room' });
+    }
 
     await this.redisClient.lRem(this.waitingQueueKey, 0, client.id)
     client.emit('match-making-cancelled', { message: 'Matchmaking cancelled' })
+    this.logEvents('cancel-match-making', client, 'Matchmaking cancelled', false);
   }
 
   @SubscribeMessage('offer-connection')
   async handleOffer(@ConnectedSocket() client: Socket, @MessageBody() data: { offer: RTCSessionDescriptionInit }) {
     const partnerId = await this.checkForRoomAndReturnPartnerId(client)
     if (partnerId) {
+
       this.Server.to(partnerId).emit('incomming-offer-connection', { offer: data.offer })
     }
     else
     {
-      client.emit("error",{message:"Not joined in any room"})
+      this.logEvents('offer-connection', client, 'Not joined in any room', true);
+      return client.emit("error", { message: "Not joined in any room" });
     }
   }
 
@@ -90,11 +104,13 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
   async handleAnswer(@ConnectedSocket() client: Socket, @MessageBody() data: { answer: RTCSessionDescriptionInit }) {
     const partnerId = await this.checkForRoomAndReturnPartnerId(client)
     if (partnerId) {
+      this.logEvents('answer', client, `Answer created for ${partnerId}`,false);
       this.Server.to(partnerId).emit('answer-reply', { answer: data.answer })
     }
     else
     {
-      client.emit("error",{message:"Not joined in any room"})
+      this.logEvents('answer', client, 'Not joined in any room', true);
+      return client.emit("error", { message: "Not joined in any room" });
     }
   }
 
@@ -189,5 +205,27 @@ export class WebsocketGateway implements OnModuleInit,OnGatewayDisconnect{
   private updateOnlineUsers() {
     this.Server.emit('online-users', this.Server.engine.clientsCount)
   }
+
+  private logEvents(event:string,client:Socket,message:string,error=true)
+  { 
+    if(error)
+      this.logger.webSocketError({
+      event,
+      clientId: client.id,
+      ip: client.handshake.address,
+      userAgent: client.handshake.headers['user-agent'],
+      message,
+      });
+    else
+      this.logger.webSocketInfo({
+      event,
+      clientId: client.id,
+      ip: client.handshake.address,
+      userAgent: client.handshake.headers['user-agent'],
+      message,
+    });
+  }
+
+  
 
 }
