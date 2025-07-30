@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from "react";
 type StreamVideoProps = {
   stream: MediaStream | null;
   className?: string;
@@ -8,7 +8,14 @@ type StreamVideoProps = {
   style?: React.CSSProperties;
 };
 
-const StreamVideo: React.FC<StreamVideoProps> = ({stream,className = '',muted = true,autoPlay = true,playsInline = true,style = {}}) => {
+const StreamVideo: React.FC<StreamVideoProps> = ({
+  stream,
+  className = "",
+  muted = true,
+  autoPlay = true,
+  playsInline = true,
+  style = {},
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {

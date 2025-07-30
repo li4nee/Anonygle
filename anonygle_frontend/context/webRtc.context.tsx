@@ -1,13 +1,22 @@
 "use client";
 
-import React, {createContext,useContext,useEffect,useCallback,useState, useRef} from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useCallback,
+  useState,
+  useRef,
+} from "react";
 import { useSocket } from "./socket.context";
 
 type WebRTCContextType = {
   peer: RTCPeerConnection | null;
   createOffer: () => Promise<RTCSessionDescriptionInit | null>;
-  createAnswer : (offer:RTCSessionDescriptionInit) => Promise<RTCSessionDescriptionInit | undefined>
-  handleIncommingAnswer:(answer:RTCSessionDescriptionInit)=> Promise<void>
+  createAnswer: (
+    offer: RTCSessionDescriptionInit,
+  ) => Promise<RTCSessionDescriptionInit | undefined>;
+  handleIncommingAnswer: (answer: RTCSessionDescriptionInit) => Promise<void>;
   myStream: MediaStream | null;
   remoteStream: MediaStream | null;
 };
@@ -16,13 +25,16 @@ const WebRTCContext = createContext<WebRTCContextType | null>(null);
 
 export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
   const [peer, setPeer] = useState<RTCPeerConnection | null>(null);
-  const [myStream,setMyStream] = useState<MediaStream|null>(null);
-  const [remoteStream,setRemoteStream] = useState<MediaStream|null>(null);
-  const { socket } = useSocket()
+  const [myStream, setMyStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const { socket } = useSocket();
   const remoteDescriptionSet = useRef(false);
 
   const createPeerConnection = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: true,
+    });
     setMyStream(stream);
     const peer = new RTCPeerConnection({
       iceServers: [
@@ -54,29 +66,38 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
     peer.onconnectionstatechange = () => {
-      if (peer?.connectionState === "disconnected" || peer?.connectionState === "closed") {
+      if (
+        peer?.connectionState === "disconnected" ||
+        peer?.connectionState === "closed"
+      ) {
         resetPeer();
       }
     };
     peer.oniceconnectionstatechange = () => {
-      if (peer?.iceConnectionState === "disconnected" || peer?.iceConnectionState === "closed") {
+      if (
+        peer?.iceConnectionState === "disconnected" ||
+        peer?.iceConnectionState === "closed"
+      ) {
         resetPeer();
       }
     };
     peer.onicegatheringstatechange = () => {
-      if (peer?.iceGatheringState === "complete" && !remoteDescriptionSet.current) {
+      if (
+        peer?.iceGatheringState === "complete" &&
+        !remoteDescriptionSet.current
+      ) {
         console.warn("ICE gathering complete but remote description not set");
       }
     };
     if (stream) {
-      stream.getTracks().forEach(track => {
+      stream.getTracks().forEach((track) => {
         peer.addTrack(track, stream);
       });
     }
     return peer;
   }, [socket]);
-  
-    useEffect(() => {
+
+  useEffect(() => {
     const setupPeer = async () => {
       if (typeof window !== "undefined") {
         const newPeer = await createPeerConnection();
@@ -85,76 +106,92 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     setupPeer();
-    }, [createPeerConnection]);
+  }, [createPeerConnection]);
 
-  
   const createOffer = useCallback(async () => {
-    if (!peer) 
-      return null;
+    if (!peer) return null;
     const offer = await peer.createOffer();
     await peer.setLocalDescription(new RTCSessionDescription(offer));
     return offer;
   }, [peer]);
 
+  const createAnswer = useCallback(
+    async (offer: RTCSessionDescriptionInit) => {
+      if (!peer) return undefined;
+      if (remoteDescriptionSet.current) return undefined;
+      await peer.setRemoteDescription(offer);
+      remoteDescriptionSet.current = true;
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(new RTCSessionDescription(answer));
+      return answer;
+    },
+    [peer],
+  );
 
-  const createAnswer = useCallback(async (offer: RTCSessionDescriptionInit) => {
-    if (!peer) 
-      return undefined;
-    if (remoteDescriptionSet.current)
-      return undefined;
-    await peer.setRemoteDescription(offer);
-    remoteDescriptionSet.current = true;
-    const answer = await peer.createAnswer();
-    await peer.setLocalDescription(new RTCSessionDescription(answer));
-    return answer;
-  },[peer]);
+  const handleIncommingAnswer = useCallback(
+    async (answer: RTCSessionDescriptionInit) => {
+      if (!peer) return;
+      if (!remoteDescriptionSet.current)
+        await peer.setRemoteDescription(new RTCSessionDescription(answer));
+      else
+        console.warn(
+          "Remote description already set, ignoring incoming answer",
+        );
+      remoteDescriptionSet.current = true;
+    },
+    [peer],
+  );
 
-  const handleIncommingAnswer = useCallback(async (answer: RTCSessionDescriptionInit) => {
-    if (!peer) 
-      return;
-    if (!remoteDescriptionSet.current)
-    await peer.setRemoteDescription(new RTCSessionDescription(answer)); 
-    else
-      console.warn("Remote description already set, ignoring incoming answer");
-    remoteDescriptionSet.current = true;
-  }, [peer]);
-
-
-  const addIceCandidate = useCallback(async (candidate: RTCIceCandidateInit) => {
-    if (!peer) 
-      return;
-    try {
-      await peer.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (error) {
-      console.error("Error adding ICE candidate:", error);
-    }
-  }, [peer]);
-
+  const addIceCandidate = useCallback(
+    async (candidate: RTCIceCandidateInit) => {
+      if (!peer) return;
+      try {
+        await peer.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error("Error adding ICE candidate:", error);
+      }
+    },
+    [peer],
+  );
 
   useEffect(() => {
-    const handleRemoteIceCandidate = (data: { candidate: RTCIceCandidateInit }) => {
-    if (!remoteDescriptionSet.current)
-      return console.warn("Cannot add ICE candidate before remote description is set");
-    const { candidate } = data;
-    if (!candidate) 
-      return;
-    if (candidate.sdpMid !== null && candidate.sdpMid !== undefined) {
-      addIceCandidate(candidate);
-    } else if (candidate.sdpMLineIndex !== null && candidate.sdpMLineIndex !== undefined) {
-      addIceCandidate(candidate);
-    }
-  };
+    const handleRemoteIceCandidate = (data: {
+      candidate: RTCIceCandidateInit;
+    }) => {
+      if (!remoteDescriptionSet.current)
+        return console.warn(
+          "Cannot add ICE candidate before remote description is set",
+        );
+      const { candidate } = data;
+      if (!candidate) return;
+      if (candidate.sdpMid !== null && candidate.sdpMid !== undefined) {
+        addIceCandidate(candidate);
+      } else if (
+        candidate.sdpMLineIndex !== null &&
+        candidate.sdpMLineIndex !== undefined
+      ) {
+        addIceCandidate(candidate);
+      }
+    };
 
     socket?.on("ice-candidate", handleRemoteIceCandidate);
-  
+
     return () => {
       socket?.off("ice-candidate", handleRemoteIceCandidate);
     };
   }, [socket, addIceCandidate]);
-  
 
   return (
-    <WebRTCContext.Provider value={{ peer, createOffer,createAnswer,handleIncommingAnswer,myStream,remoteStream }}>
+    <WebRTCContext.Provider
+      value={{
+        peer,
+        createOffer,
+        createAnswer,
+        handleIncommingAnswer,
+        myStream,
+        remoteStream,
+      }}
+    >
       {children}
     </WebRTCContext.Provider>
   );

@@ -1,6 +1,6 @@
-import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from "@nestjs/common";
 
-export const RATE_LIMIT_METADATA_KEY = 'brute_force_options';
+export const RATE_LIMIT_METADATA_KEY = "brute_force_options";
 
 export interface BruteForceLimitOptions {
   blockDuration: number;
@@ -8,4 +8,5 @@ export interface BruteForceLimitOptions {
   timeLimit: number;
 }
 
-export const UseBruteForceLimit = (options: BruteForceLimitOptions) => SetMetadata(RATE_LIMIT_METADATA_KEY, options);
+export const UseBruteForceLimit = (options: BruteForceLimitOptions) =>
+  SetMetadata(RATE_LIMIT_METADATA_KEY, options);

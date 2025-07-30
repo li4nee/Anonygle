@@ -6,7 +6,7 @@ import { AppData } from "./config/db.config";
 import { SharedModule } from "./shared/shared.module";
 import { RateLimitMiddleware } from "./middleware/ratelimit.middleware";
 import { RepoModule } from "./repo/repo.module";
-import { WebsocketGateway } from './websocket/websocket.gateway';
+import { WebsocketGateway } from "./websocket/websocket.gateway";
 
 @Module({
   imports: [
@@ -15,15 +15,14 @@ import { WebsocketGateway } from './websocket/websocket.gateway';
     // Yo chai database ko table haru ko configuration
     TypeOrmModule.forFeature([]),
     RepoModule,
-    SharedModule
+    SharedModule,
   ],
-  providers: [AppService,WebsocketGateway,],
+  providers: [AppService, WebsocketGateway],
   exports: [SharedModule],
   controllers: [AppController],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RateLimitMiddleware)
-    .forRoutes("/")
+    consumer.apply(RateLimitMiddleware).forRoutes("/");
   }
 }

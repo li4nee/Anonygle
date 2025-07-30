@@ -11,7 +11,6 @@ Built with Socket.io, WebRTC, Next.js, and NestJS for seamless real-time video c
 ## Features to Add
 - Reporting system for admins  
 - Peer-to-peer screen sharing   
-- BullMQ for asynchronous user matching logic  
 - Interest-based matchups
 
 

@@ -41,7 +41,7 @@ export class RateLimitError extends CustomError {
   }
 }
 
-export class MailSendError extends CustomError{
+export class MailSendError extends CustomError {
   constructor(message: string = "Error Sending Mail") {
     super(500, message);
     this.message = message;

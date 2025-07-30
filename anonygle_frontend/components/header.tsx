@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Video, Menu } from "lucide-react";
 
@@ -11,28 +10,30 @@ const Header = () => {
           <span className="text-xl font-bold">Anonygle</span>
         </div>
         <nav className="hidden md:flex items-center gap-8">
-          <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
+          <a
+            href="#features"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
             Features
           </a>
-          <a href="#safety" className="text-muted-foreground hover:text-foreground transition-colors">
+          <a
+            href="#safety"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
             Safety
           </a>
-          <a href="#about" className="text-muted-foreground hover:text-foreground transition-colors">
+          <a
+            href="#about"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
             About
           </a>
         </nav>
         <div className="flex items-center gap-4">
-          <Button 
-            size="sm" 
-            className="bg-primary hover:bg-primary/90 glow-red"
-          >
+          <Button size="sm" className="bg-primary hover:bg-primary/90 glow-red">
             Start Chat
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="md:hidden"
-          >
+          <Button variant="ghost" size="sm" className="md:hidden">
             <Menu className="w-5 h-5" />
           </Button>
         </div>

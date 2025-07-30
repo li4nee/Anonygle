@@ -1,36 +1,36 @@
-"use client"
+"use client";
 
-import { useState, useRef, type KeyboardEvent, useEffect } from "react"
-import { Send } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { useState, useRef, type KeyboardEvent, useEffect } from "react";
+import { Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 interface MessageInputProps {
-  onSendMessage: (message: string) => void
+  onSendMessage: (message: string) => void;
 }
 
 export function MessageInput({ onSendMessage }: MessageInputProps) {
-  const [message, setMessage] = useState("")
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [message, setMessage] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    textareaRef.current?.focus()
-  }, [])
+    textareaRef.current?.focus();
+  }, []);
 
   const handleSend = () => {
-    const trimmed = message.trim()
+    const trimmed = message.trim();
     if (trimmed) {
-      onSendMessage(trimmed)
-      setMessage("")
+      onSendMessage(trimmed);
+      setMessage("");
     }
-  }
+  };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
+      e.preventDefault();
+      handleSend();
     }
-  }
+  };
 
   return (
     <div className="p-3 border-t border-gray-200 bg-white flex items-end gap-2 animate-in fade-in slide-in-from-bottom-2">
@@ -52,5 +52,5 @@ export function MessageInput({ onSendMessage }: MessageInputProps) {
         <Send className="h-5 w-5" />
       </Button>
     </div>
-  )
+  );
 }

@@ -12,12 +12,11 @@ import { SessionToken } from "src/types/base.type";
  */
 @Injectable()
 export class LoginGlobalStore {
-  
-  login_hash = "login_store"
-  private secret: string =globalSettings.JWT_SECRET || "miccheck1212miccheck1212"
-  private client : RedisClientType
-  constructor(private readonly redisService: RedisService) {
-  }
+  login_hash = "login_store";
+  private secret: string =
+    globalSettings.JWT_SECRET || "miccheck1212miccheck1212";
+  private client: RedisClientType;
+  constructor(private readonly redisService: RedisService) {}
 
   onModuleInit() {
     this.client = this.redisService.getClient();
@@ -25,38 +24,42 @@ export class LoginGlobalStore {
 
   private validateToken = (token: string): SessionToken | undefined => {
     try {
-      
       return jwt.verify(token, this.secret) as SessionToken;
-    } catch(err) {
+    } catch (err) {
       return undefined;
     }
   };
-  
-  private setToken = async (hash: string, sessionId: string, token: string, expiry?: number) => {
+
+  private setToken = async (
+    hash: string,
+    sessionId: string,
+    token: string,
+    expiry?: number,
+  ) => {
     const key = `${hash}:${sessionId}`;
     await this.client.sAdd(key, token);
-    if (expiry) 
-      await this.client.expire(key, expiry);
+    if (expiry) await this.client.expire(key, expiry);
   };
-  
+
   private getToken = async (hash: string, sessionId: string) => {
     const key = `${hash}:${sessionId}`;
     const exists = await this.client.exists(key);
-    if (!exists) 
-      return { found: false, tokens: [] };
+    if (!exists) return { found: false, tokens: [] };
     const tokens = await this.client.sMembers(key); // sab token dincha esle
     return { found: true, tokens };
   };
-  
-  private removeToken = async (hash: string, sessionId: string, token: string) => {
+
+  private removeToken = async (
+    hash: string,
+    sessionId: string,
+    token: string,
+  ) => {
     const key = `${hash}:${sessionId}`;
     const removed = await this.client.sRem(key, token);
-    const remaining = await this.client.sCard(key);  // Kati ota remaining tokens cha tesko count dincha esle
-    if (remaining === 0) 
-      await this.client.del(key);
+    const remaining = await this.client.sCard(key); // Kati ota remaining tokens cha tesko count dincha esle
+    if (remaining === 0) await this.client.del(key);
     return removed === 1;
   };
-  
 
   removeSessionToken = async (sessionId: string, token: string) => {
     return await this.removeToken(this.login_hash, sessionId, token);
@@ -76,8 +79,6 @@ export class LoginGlobalStore {
   };
 
   setSessionToken = async (token: string, sessionId: string) => {
-    await this.setToken(this.login_hash, sessionId, token,60*60);
+    await this.setToken(this.login_hash, sessionId, token, 60 * 60);
   };
-
 }
-

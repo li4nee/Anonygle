@@ -2,13 +2,13 @@ import { Column } from "typeorm";
 import { GlobalEntity } from "./global.entity";
 
 export class SessionDetails extends GlobalEntity {
-    constructor() {
-        super();
-    }
+  constructor() {
+    super();
+  }
 
-    @Column()
-    ip: string;
+  @Column()
+  ip: string;
 
-    @Column()
-    userAgent: string;
+  @Column()
+  userAgent: string;
 }
