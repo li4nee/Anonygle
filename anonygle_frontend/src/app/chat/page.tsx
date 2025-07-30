@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { VideoOff, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ChatStatus, Message } from "../../../typings/base.typings";
+import { ChatStatus, Message } from "../../typings/base.typings";
 import ChatInterface from "../../../components/chat/chatinterface";
 import { cn } from "@/lib/utils";
 import { useSocket } from "../../../context/socket.context";

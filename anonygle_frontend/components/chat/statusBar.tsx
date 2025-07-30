@@ -1,4 +1,4 @@
-import { ChatStatus } from "../../typings/base.typings";
+import { ChatStatus } from "../../src/typings/base.typings";
 
 interface StatusBarProps {
   status: ChatStatus;

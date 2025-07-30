@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { Message } from "../../typings/base.typings";
+import { Message } from "../../src/typings/base.typings";
 interface ChatWindowProps {
   messages: Message[];
 }

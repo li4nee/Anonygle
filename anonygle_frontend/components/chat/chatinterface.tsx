@@ -6,7 +6,7 @@ import { StatusBar } from "./statusBar";
 import { WaitingScreen } from "./waitingScreen";
 import { ChatWindow } from "./chatWIndow";
 import { MessageInput } from "./messageInput";
-import { ChatStatus, Message } from "../../typings/base.typings";
+import { ChatStatus, Message } from "../../src/typings/base.typings";
 
 interface ChatInterfaceProps {
   status: ChatStatus;
