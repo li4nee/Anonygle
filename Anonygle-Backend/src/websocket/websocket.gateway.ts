@@ -53,7 +53,7 @@ export class WebsocketGateway implements OnModuleInit, OnGatewayDisconnect {
       this.logEvents("message", client, "No other members in the room", true);
       return client.emit("error", { message: "No other members in the room" });
     }
-
+    this.Server.to(otherMemberId).emit("new-message", { message: body });
     return this.logEvents(
       "message",
       client,

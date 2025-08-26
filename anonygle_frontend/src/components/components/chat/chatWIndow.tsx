@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { Message } from "../../src/typings/base.typings";
+import { Message } from "../../../typings/base.typings";
 interface ChatWindowProps {
   messages: Message[];
 }
@@ -33,3 +33,4 @@ export function ChatWindow({ messages }: ChatWindowProps) {
     </div>
   );
 }
+

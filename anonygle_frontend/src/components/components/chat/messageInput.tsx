@@ -22,6 +22,7 @@ export function MessageInput({ onSendMessage }: MessageInputProps) {
     if (trimmed) {
       onSendMessage(trimmed);
       setMessage("");
+      textareaRef.current?.focus();
     }
   };
 
@@ -33,7 +34,7 @@ export function MessageInput({ onSendMessage }: MessageInputProps) {
   };
 
   return (
-    <div className="p-3 border-t border-gray-200 bg-white flex items-end gap-2 animate-in fade-in slide-in-from-bottom-2">
+    <div className="flex items-end gap-2 p-3 border-t bg-secondary shadow-inner rounded-t-xl">
       <Textarea
         ref={textareaRef}
         value={message}
@@ -41,15 +42,15 @@ export function MessageInput({ onSendMessage }: MessageInputProps) {
         onKeyDown={handleKeyDown}
         placeholder="Type a message..."
         aria-label="Message"
-        className="resize-none min-h-[50px] max-h-[120px] flex-1 text-gray-400 rounded-lg shadow-sm focus:ring-2 focus:ring-gray-500 transition-all"
+        className="flex-1 resize-none min-h-[48px] max-h-[120px] rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 px-3 py-2 text-gray-700 placeholder-gray-400 shadow-sm transition-all"
       />
       <Button
         onClick={handleSend}
         disabled={!message.trim()}
-        className="h-[50px] w-[50px] p-0 rounded-full bg-blue-600 hover:bg-blue-700 hover:cursor-pointer transition-colors disabled:opacity-50 flex items-center justify-center"
+        className="h-12 w-12 p-0 rounded-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center transition-colors"
         aria-label="Send message"
       >
-        <Send className="h-5 w-5" />
+        <Send className="h-5 w-5 text-white" />
       </Button>
     </div>
   );

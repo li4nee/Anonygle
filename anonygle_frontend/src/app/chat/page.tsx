@@ -1,20 +1,22 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { VideoOff, SkipForward } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { VideoOff, SkipForward, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatStatus, Message } from "../../typings/base.typings";
-import ChatInterface from "../../../components/chat/chatinterface";
 import { cn } from "@/lib/utils";
-import { useSocket } from "../../../context/socket.context";
-import { useWebRTC } from "../../../context/webRtc.context";
-import ReactPlayer from "react-player";
+import { useSocket } from "@/context/socket.context";
+import ChatInterface from "@/components/components/chat/chatinterface";
+import { useWebRTC } from "@/context/webrtc.context";
+import { VideoPlaceholder } from "@/components/components/webrtc/video-placeholder";
+import { VideoControls } from "@/components/components/webrtc/videocontrols";
 
 export default function ChatPage() {
   const { socket } = useSocket();
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [noOffOnline, setNoOfOnline] = useState(0);
+  const [noOfOnline, setNoOfOnline] = useState(0);
+
   const {
     peer,
     createOffer,
@@ -22,13 +24,29 @@ export default function ChatPage() {
     handleIncommingAnswer,
     remoteStream,
     myStream,
+    resetPeer
   } = useWebRTC();
 
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+
   const disconnectChat = () => {
-    socket?.emit("disconnect-match-making");
-    setMessages([]);
-    setStatus("idle");
-  };
+  socket?.emit("disconnect-match-making");
+  setMessages([]);
+  setStatus("idle");
+
+  resetPeer()
+
+  // Clear local and remote video elements
+  if (localVideoRef.current) {
+    localVideoRef.current.srcObject = null;
+  }
+  if (remoteVideoRef.current) {
+    remoteVideoRef.current.srcObject = null;
+  }
+
+};
+
 
   const startChat = () => {
     socket?.emit("start-match-making");
@@ -39,6 +57,14 @@ export default function ChatPage() {
     socket?.emit("next-match-making");
     setMessages([]);
     setStatus("waiting");
+    resetPeer()
+
+  if (localVideoRef.current) {
+    localVideoRef.current.srcObject = null;
+  }
+  if (remoteVideoRef.current) {
+    remoteVideoRef.current.srcObject = null;
+  }
   };
 
   const sendMessage = (text: string) => {
@@ -51,10 +77,12 @@ export default function ChatPage() {
     socket?.emit("peer:nego:needed", { offer });
   }, [socket, createOffer]);
 
+  // Attach negotiationneeded event
   useEffect(() => {
-    peer?.addEventListener("negotiationneeded", handleNegoNeeded);
+    if (!peer) return;
+    peer.addEventListener("negotiationneeded", handleNegoNeeded);
     return () => {
-      peer?.removeEventListener("negotiationneeded", handleNegoNeeded);
+      peer.removeEventListener("negotiationneeded", handleNegoNeeded);
     };
   }, [handleNegoNeeded, peer]);
 
@@ -63,24 +91,23 @@ export default function ChatPage() {
       const ans = await createAnswer(offer);
       socket?.emit("peer:nego:done", { ans });
     },
-    [socket, createAnswer],
+    [socket, createAnswer]
   );
 
   const handleNegoNeedFinal = useCallback(
     async ({ answer }: { answer: RTCSessionDescriptionInit }) => {
       await handleIncommingAnswer(answer);
     },
-    [handleIncommingAnswer],
+    [handleIncommingAnswer]
   );
 
-  /**
-   * * This useeffect le chai handles the incoming answer from the other peer.
-   * Like main main sab kam esle nai garcha
-   */
+  // Socket listeners
   useEffect(() => {
+    if (!socket) return;
+
     const handleMatchFound = async () => {
       const offer = await createOffer();
-      socket?.emit("offer-connection", { offer });
+      socket.emit("offer-connection", { offer });
     };
 
     const handleIncommingRequest = async ({
@@ -89,7 +116,7 @@ export default function ChatPage() {
       offer: RTCSessionDescriptionInit;
     }) => {
       const answer = await createAnswer(offer);
-      socket?.emit("answer", { answer });
+      socket.emit("answer", { answer });
       setStatus("connected");
     };
 
@@ -102,90 +129,106 @@ export default function ChatPage() {
       setStatus("connected");
     };
 
-    socket?.on("incomming-offer-connection", (offer) => {
+    socket.on("incomming-offer-connection", (offer) => {
       handleIncommingRequest(offer);
     });
-
-    socket?.on("answer-reply", manageIncommingOfferAnswer);
-    socket?.on("match-found", handleMatchFound);
-
-    socket?.on("new-message", ({ message }: { message: string }) => {
+    socket.on("answer-reply", manageIncommingOfferAnswer);
+    socket.on("match-found", handleMatchFound);
+    socket.on("new-message", ({ message }: { message: string }) => {
       setMessages((prev) => [...prev, { content: message, fromSelf: false }]);
     });
-    socket?.on("partner-disconnected", () => {
+    socket.on("partner-disconnected", () => {
       setStatus("disconnected");
       setMessages([]);
     });
+    socket.on("online-users", setNoOfOnline);
+    socket.on("peer:nego:needed", handleNegoNeedIncomming);
+    socket.on("peer:nego:final", handleNegoNeedFinal);
 
-    socket?.on("online-users", setNoOfOnline);
-    socket?.on("peer:nego:needed", handleNegoNeedIncomming);
-    socket?.on("peer:nego:final", handleNegoNeedFinal);
     return () => {
-      socket?.off("match-found");
-      socket?.off("new-message");
-      socket?.off("partner-disconnected");
-      socket?.off("online-users");
-      socket?.off("offer-connection");
-      socket?.off("incomming-offer-connection");
-      socket?.off("answer-reply");
-      socket?.off("peer:nego:needed");
-      socket?.off("peer:nego:final");
+      socket.off("incomming-offer-connection");
+      socket.off("answer-reply");
+      socket.off("match-found");
+      socket.off("new-message");
+      socket.off("partner-disconnected");
+      socket.off("online-users");
+      socket.off("peer:nego:needed");
+      socket.off("peer:nego:final");
     };
   }, [
     socket,
-    status,
     createOffer,
     createAnswer,
     handleIncommingAnswer,
     handleNegoNeedIncomming,
     handleNegoNeedFinal,
-    peer,
-    myStream,
   ]);
 
+  // Attach MediaStreams to video elements
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+    if (localVideoRef.current && myStream) {
+      localVideoRef.current.srcObject = myStream;
+    }
+  }, [remoteStream, myStream]);
+
+  const hasRemoteVideo = !!remoteStream?.getVideoTracks()?.length;
+  const hasLocalVideo = !!myStream?.getVideoTracks()?.length;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
-      <div className="container mx-auto py-10 px-6">
-        <h1 className="text-4xl font-bold text-center mb-10 text-white">
-          Anonygle
-        </h1>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-card gradient-mesh">
+      <div className="container mx-auto py-8 px-6">
+        <div className="text-center mb-8">
+          <h1 className="text-5xl font-bold text-foreground mb-2 text-glow">
+            Anonygle
+          </h1>
+          <p className="text-muted-foreground">
+            Anonymous video chat platform
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           <div className="w-full flex flex-col">
-            <div className="relative w-full aspect-video bg-black rounded-2xl shadow-xl overflow-hidden mb-6 h-[500px]">
-              {remoteStream && (
-                <ReactPlayer
-                  url={remoteStream}
-                  playing
-                  muted={false}
-                  width="100%"
-                  height="100%"
-                  className="absolute inset-0 object-cover"
+            <div className="relative w-full aspect-video bg-card rounded-2xl shadow-2xl overflow-hidden mb-6 h-[500px] border-2 border-border glow-red">
+              {hasRemoteVideo ? (
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-cover"
                 />
-              )}
-              {myStream && (
-                <div className="absolute bottom-4 right-4 w-60 h-48 z-10 border-2 border-white rounded-md overflow-hidden shadow-md">
-                  <ReactPlayer
-                    url={myStream}
-                    muted
-                    playing
-                    width="100%"
-                    height="100%"
-                  />
-                </div>
+              ) : (
+                <VideoPlaceholder type="remote" userName="Anonymous User" />
               )}
 
-              <div className="absolute top-6 left-6 flex items-center space-x-2">
+              <div className="absolute bottom-4 right-4 w-60 h-48 z-10 border-2 border-primary rounded-lg overflow-hidden shadow-lg glow-red">
+                {hasLocalVideo ? (
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full h-full"
+                  />
+                ) : (
+                  <VideoPlaceholder type="local" />
+                )}
+              </div>
+
+              <div className="absolute top-6 left-6 flex items-center space-x-3 bg-card/80 backdrop-blur-sm rounded-full px-4 py-2 border border-border">
                 <div
                   className={cn(
-                    "h-3 w-3 rounded-full",
-                    status === "idle" && "bg-gray-400",
-                    status === "waiting" && "bg-yellow-400",
-                    status === "connected" && "bg-green-400",
-                    status === "error" && "bg-red-500",
-                    status === "disconnected" && "bg-gray-400",
+                    "h-3 w-3 rounded-full transition-all",
+                    status === "idle" && "bg-muted-foreground",
+                    status === "waiting" && "bg-yellow-500 animate-pulse",
+                    status === "connected" && "bg-green-500 glow-red",
+                    status === "error" && "bg-destructive glow-red-strong",
+                    status === "disconnected" && "bg-muted-foreground"
                   )}
                 />
-                <span className="text-white font-medium text-sm sm:text-base">
+                <span className="text-foreground font-medium text-sm">
                   {status === "idle" && "Disconnected"}
                   {status === "waiting" && "Connecting..."}
                   {status === "connected" && "Connected"}
@@ -194,18 +237,27 @@ export default function ChatPage() {
                 </span>
               </div>
 
-              <div className="absolute top-6 right-6 bg-gray-900 bg-opacity-60 px-4 py-2 rounded-full">
-                <span className="text-white text-sm sm:text-base">
-                  {noOffOnline} users online
-                </span>
+              <div className="absolute top-6 right-6 bg-card/80 backdrop-blur-sm px-4 py-2 rounded-full border border-border">
+                <div className="flex items-center space-x-2">
+                  <Wifi className="h-4 w-4 text-primary" />
+                  <span className="text-foreground text-sm font-medium">
+                    {noOfOnline} online
+                  </span>
+                </div>
               </div>
+
+              {status === "connected" && (
+                <div className="absolute bottom-4 left-4">
+                  <VideoControls myStream={myStream} remoteStream={remoteStream} />
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between gap-4 sm:gap-6 mb-6">
               <Button
                 variant="outline"
                 size="lg"
-                className="flex-1 bg-gray-800 border-gray-700 text-white hover:bg-gray-700 text-lg py-5"
+                className="flex-1 bg-card border-border text-foreground hover:bg-secondary text-lg py-6 transition-all"
                 onClick={disconnectChat}
               >
                 <VideoOff className="mr-3 h-6 w-6" />
@@ -214,7 +266,7 @@ export default function ChatPage() {
 
               <Button
                 size="lg"
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-lg py-5"
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-6 glow-red transition-all"
                 onClick={nextChat}
               >
                 <SkipForward className="mr-3 h-6 w-6" />
@@ -232,6 +284,7 @@ export default function ChatPage() {
               onCancel={() => setStatus("idle")}
               onDisconnect={disconnectChat}
               onNext={nextChat}
+              onlineCount={noOfOnline}
             />
           </div>
         </div>
