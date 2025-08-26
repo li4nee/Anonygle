@@ -4,7 +4,6 @@ services:
     depends_on:
       - database
       - redis
-      - broker
     build:
       context: ./
       dockerfile: dockerfile
@@ -45,24 +44,7 @@ services:
       - ./redis:/data
     networks:
       - default
-  
-  broker:
-    image: rabbitmq:latest
-    container_name: broker
-    restart: always
-    ports:
-      - "5673:5672"
-      - "15673:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: ${BROKER_PASSWORD}
-      RABBITMQ_DEFAULT_PASS: ${BROKER_USERNAME}
-    volumes:
-      - ./rabbitmq:/var/lib/rabbitmq
-    networks:
-      - broker_network
 
 networks:
   default:
-    driver: bridge
-  broker_network:
     driver: bridge
