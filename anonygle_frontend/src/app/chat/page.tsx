@@ -16,6 +16,7 @@ export default function ChatPage() {
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [messages, setMessages] = useState<Message[]>([]);
   const [noOfOnline, setNoOfOnline] = useState(0);
+
   const {
     peer,
     createOffer,
@@ -23,16 +24,17 @@ export default function ChatPage() {
     handleIncommingAnswer,
     remoteStream,
     myStream,
+    resetPeer,
+    initPeerConnection,
   } = useWebRTC();
 
-  // 🔹 Add refs for attaching video
+  // Refs for video elements
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const hasLocalVideo = !!myStream;
   const hasRemoteVideo = !!remoteStream;
 
-  // 🔹 Attach streams to video elements
   useEffect(() => {
     if (localVideoRef.current && myStream) {
       localVideoRef.current.srcObject = myStream;
@@ -50,12 +52,17 @@ export default function ChatPage() {
     setStatus("waiting");
   };
 
-  const disconnectChat = () => {
+  const disconnectChat = async () => {
+    await resetPeer();
+    await initPeerConnection();
     socket?.emit("disconnect-match-making");
     setMessages([]);
     setStatus("idle");
   };
-  const nextChat = () => {
+
+  const nextChat = async () => {
+    await resetPeer();
+    await initPeerConnection();
     socket?.emit("next-match-making");
     setMessages([]);
     setStatus("waiting");
@@ -72,9 +79,10 @@ export default function ChatPage() {
   }, [socket, createOffer]);
 
   useEffect(() => {
-    peer?.addEventListener("negotiationneeded", handleNegoNeeded);
+    if (!peer) return;
+    peer.addEventListener("negotiationneeded", handleNegoNeeded);
     return () => {
-      peer?.removeEventListener("negotiationneeded", handleNegoNeeded);
+      peer.removeEventListener("negotiationneeded", handleNegoNeeded);
     };
   }, [handleNegoNeeded, peer]);
 
@@ -132,12 +140,13 @@ export default function ChatPage() {
     });
     socket?.on("partner-disconnected", () => {
       setStatus("disconnected");
-      setMessages([]);
+      resetPeer();
     });
 
     socket?.on("online-users", setNoOfOnline);
     socket?.on("peer:nego:needed", handleNegoNeedIncomming);
     socket?.on("peer:nego:final", handleNegoNeedFinal);
+
     return () => {
       socket?.off("match-found");
       socket?.off("new-message");
@@ -159,6 +168,7 @@ export default function ChatPage() {
     handleNegoNeedFinal,
     peer,
     myStream,
+    resetPeer,
   ]);
 
   return (
@@ -230,10 +240,7 @@ export default function ChatPage() {
 
               {status === "connected" && (
                 <div className="absolute bottom-4 left-4">
-                  <VideoControls
-                    myStream={myStream}
-                    remoteStream={remoteStream}
-                  />
+                  <VideoControls myStream={myStream} remoteStream={remoteStream} />
                 </div>
               )}
             </div>
@@ -248,7 +255,6 @@ export default function ChatPage() {
                 <VideoOff className="mr-3 h-6 w-6" />
                 Stop
               </Button>
-
               <Button
                 size="lg"
                 className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-6 glow-red transition-all"
