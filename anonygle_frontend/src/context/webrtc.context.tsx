@@ -19,7 +19,6 @@ type WebRTCContextType = {
   handleIncommingAnswer: (answer: RTCSessionDescriptionInit) => Promise<void>;
   myStream: MediaStream | null;
   remoteStream: MediaStream | null;
-  resetPeer: () => void;
 };
 
 const WebRTCContext = createContext<WebRTCContextType | null>(null);
@@ -44,6 +43,15 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         { urls: "stun:stun2.l.google.com:19302" },
       ],
     });
+    const resetPeer = () => {
+      if (peer) {
+        peer.close();
+      }
+      setPeer(null);
+      setMyStream(null);
+      setRemoteStream(null);
+      remoteDescriptionSet.current = false;
+    };
     peer.onicecandidate = (event) => {
       if (event.candidate) {
         socket?.emit("ice-candidate", { candidate: event.candidate });
@@ -88,29 +96,6 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
     }
     return peer;
   }, [socket]);
-
-  const resetPeer = useCallback(() => {
-    // Stop local tracks
-    if (myStream) {
-      myStream.getTracks().forEach((track) => track.stop());
-    }
-
-    // Stop remote tracks
-    if (remoteStream) {
-      remoteStream.getTracks().forEach((track) => track.stop());
-    }
-
-    // Close peer connection
-    if (peer) {
-      peer.close();
-    }
-
-    // Reset state
-    setPeer(null);
-    setMyStream(null);
-    setRemoteStream(null);
-    remoteDescriptionSet.current = false;
-  }, [myStream, remoteStream, peer]);
 
   useEffect(() => {
     const setupPeer = async () => {
@@ -205,7 +190,6 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         handleIncommingAnswer,
         myStream,
         remoteStream,
-        resetPeer
       }}
     >
       {children}

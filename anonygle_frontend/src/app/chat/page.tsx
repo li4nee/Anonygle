@@ -16,7 +16,6 @@ export default function ChatPage() {
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [messages, setMessages] = useState<Message[]>([]);
   const [noOfOnline, setNoOfOnline] = useState(0);
-
   const {
     peer,
     createOffer,
@@ -24,47 +23,42 @@ export default function ChatPage() {
     handleIncommingAnswer,
     remoteStream,
     myStream,
-    resetPeer
   } = useWebRTC();
 
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
+  // 🔹 Add refs for attaching video
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  const disconnectChat = () => {
-  socket?.emit("disconnect-match-making");
-  setMessages([]);
-  setStatus("idle");
+  const hasLocalVideo = !!myStream;
+  const hasRemoteVideo = !!remoteStream;
 
-  resetPeer()
+  // 🔹 Attach streams to video elements
+  useEffect(() => {
+    if (localVideoRef.current && myStream) {
+      localVideoRef.current.srcObject = myStream;
+    }
+  }, [myStream]);
 
-  // Clear local and remote video elements
-  if (localVideoRef.current) {
-    localVideoRef.current.srcObject = null;
-  }
-  if (remoteVideoRef.current) {
-    remoteVideoRef.current.srcObject = null;
-  }
-
-};
-
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   const startChat = () => {
     socket?.emit("start-match-making");
     setStatus("waiting");
   };
 
+  const disconnectChat = () => {
+    socket?.emit("disconnect-match-making");
+    setMessages([]);
+    setStatus("idle");
+  };
   const nextChat = () => {
     socket?.emit("next-match-making");
     setMessages([]);
     setStatus("waiting");
-    resetPeer()
-
-  if (localVideoRef.current) {
-    localVideoRef.current.srcObject = null;
-  }
-  if (remoteVideoRef.current) {
-    remoteVideoRef.current.srcObject = null;
-  }
   };
 
   const sendMessage = (text: string) => {
@@ -74,22 +68,20 @@ export default function ChatPage() {
 
   const handleNegoNeeded = useCallback(async () => {
     const offer = await createOffer();
-    socket?.emit("peer:nego:needed", { offer });
+    if (offer) socket?.emit("peer:nego:needed", { offer });
   }, [socket, createOffer]);
 
-  // Attach negotiationneeded event
   useEffect(() => {
-    if (!peer) return;
-    peer.addEventListener("negotiationneeded", handleNegoNeeded);
+    peer?.addEventListener("negotiationneeded", handleNegoNeeded);
     return () => {
-      peer.removeEventListener("negotiationneeded", handleNegoNeeded);
+      peer?.removeEventListener("negotiationneeded", handleNegoNeeded);
     };
   }, [handleNegoNeeded, peer]);
 
   const handleNegoNeedIncomming = useCallback(
     async ({ offer }: { offer: RTCSessionDescriptionInit }) => {
       const ans = await createAnswer(offer);
-      socket?.emit("peer:nego:done", { ans });
+      if (ans) socket?.emit("peer:nego:done", { ans });
     },
     [socket, createAnswer]
   );
@@ -101,13 +93,10 @@ export default function ChatPage() {
     [handleIncommingAnswer]
   );
 
-  // Socket listeners
   useEffect(() => {
-    if (!socket) return;
-
     const handleMatchFound = async () => {
       const offer = await createOffer();
-      socket.emit("offer-connection", { offer });
+      if (offer) socket?.emit("offer-connection", { offer });
     };
 
     const handleIncommingRequest = async ({
@@ -116,8 +105,10 @@ export default function ChatPage() {
       offer: RTCSessionDescriptionInit;
     }) => {
       const answer = await createAnswer(offer);
-      socket.emit("answer", { answer });
-      setStatus("connected");
+      if (answer) {
+        socket?.emit("answer", { answer });
+        setStatus("connected");
+      }
     };
 
     const manageIncommingOfferAnswer = async ({
@@ -129,53 +120,46 @@ export default function ChatPage() {
       setStatus("connected");
     };
 
-    socket.on("incomming-offer-connection", (offer) => {
+    socket?.on("incomming-offer-connection", (offer) => {
       handleIncommingRequest(offer);
     });
-    socket.on("answer-reply", manageIncommingOfferAnswer);
-    socket.on("match-found", handleMatchFound);
-    socket.on("new-message", ({ message }: { message: string }) => {
+
+    socket?.on("answer-reply", manageIncommingOfferAnswer);
+    socket?.on("match-found", handleMatchFound);
+
+    socket?.on("new-message", ({ message }: { message: string }) => {
       setMessages((prev) => [...prev, { content: message, fromSelf: false }]);
     });
-    socket.on("partner-disconnected", () => {
+    socket?.on("partner-disconnected", () => {
       setStatus("disconnected");
       setMessages([]);
     });
-    socket.on("online-users", setNoOfOnline);
-    socket.on("peer:nego:needed", handleNegoNeedIncomming);
-    socket.on("peer:nego:final", handleNegoNeedFinal);
 
+    socket?.on("online-users", setNoOfOnline);
+    socket?.on("peer:nego:needed", handleNegoNeedIncomming);
+    socket?.on("peer:nego:final", handleNegoNeedFinal);
     return () => {
-      socket.off("incomming-offer-connection");
-      socket.off("answer-reply");
-      socket.off("match-found");
-      socket.off("new-message");
-      socket.off("partner-disconnected");
-      socket.off("online-users");
-      socket.off("peer:nego:needed");
-      socket.off("peer:nego:final");
+      socket?.off("match-found");
+      socket?.off("new-message");
+      socket?.off("partner-disconnected");
+      socket?.off("online-users");
+      socket?.off("offer-connection");
+      socket?.off("incomming-offer-connection");
+      socket?.off("answer-reply");
+      socket?.off("peer:nego:needed");
+      socket?.off("peer:nego:final");
     };
   }, [
     socket,
+    status,
     createOffer,
     createAnswer,
     handleIncommingAnswer,
     handleNegoNeedIncomming,
     handleNegoNeedFinal,
+    peer,
+    myStream,
   ]);
-
-  // Attach MediaStreams to video elements
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-    if (localVideoRef.current && myStream) {
-      localVideoRef.current.srcObject = myStream;
-    }
-  }, [remoteStream, myStream]);
-
-  const hasRemoteVideo = !!remoteStream?.getVideoTracks()?.length;
-  const hasLocalVideo = !!myStream?.getVideoTracks()?.length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-card gradient-mesh">
@@ -184,9 +168,7 @@ export default function ChatPage() {
           <h1 className="text-5xl font-bold text-foreground mb-2 text-glow">
             Anonygle
           </h1>
-          <p className="text-muted-foreground">
-            Anonymous video chat platform
-          </p>
+          <p className="text-muted-foreground">Anonymous video chat platform</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
@@ -248,7 +230,10 @@ export default function ChatPage() {
 
               {status === "connected" && (
                 <div className="absolute bottom-4 left-4">
-                  <VideoControls myStream={myStream} remoteStream={remoteStream} />
+                  <VideoControls
+                    myStream={myStream}
+                    remoteStream={remoteStream}
+                  />
                 </div>
               )}
             </div>
