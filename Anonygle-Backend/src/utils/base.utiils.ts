@@ -8,5 +8,3 @@ export const generateId = (length: number = 20): string => {
   }
   return result;
 };
-
-

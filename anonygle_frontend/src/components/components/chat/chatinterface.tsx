@@ -1,22 +1,22 @@
-"use client"
+"use client";
 
-import { Button } from "@/components/ui/button"
-import { X, MessageCircle, Users } from "lucide-react"
-import type { ChatStatus, Message } from "../../../typings/base.typings"
-import { StatusBar } from "./statusBar"
-import { WaitingScreen } from "./waitingScreen"
-import { ChatWindow } from "./chatWIndow"
-import { MessageInput } from "./messageInput"
+import { Button } from "@/components/ui/button";
+import { X, MessageCircle, Users } from "lucide-react";
+import type { ChatStatus, Message } from "../../../typings/base.typings";
+import { StatusBar } from "./statusBar";
+import { WaitingScreen } from "./waitingScreen";
+import { ChatWindow } from "./chatWIndow";
+import { MessageInput } from "./messageInput";
 
 interface ChatInterfaceProps {
-  status: ChatStatus
-  messages: Message[]
-  onSendMessage: (text: string) => void
-  onStart: () => void
-  onCancel: () => void
-  onDisconnect: () => void
-  onNext: () => void
-  onlineCount?: number
+  status: ChatStatus;
+  messages: Message[];
+  onSendMessage: (text: string) => void;
+  onStart: () => void;
+  onCancel: () => void;
+  onDisconnect: () => void;
+  onNext: () => void;
+  onlineCount?: number;
 }
 
 export default function ChatInterface({
@@ -40,9 +40,12 @@ export default function ChatInterface({
               <MessageCircle className="h-12 w-12 text-primary" />
             </div>
             <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold text-foreground">Talk to Strangers</h2>
+              <h2 className="text-2xl font-bold text-foreground">
+                Talk to Strangers
+              </h2>
               <p className="text-muted-foreground max-w-sm">
-                Connect with random people from around the world for anonymous video chats.
+                Connect with random people from around the world for anonymous
+                video chats.
               </p>
             </div>
             <Button
@@ -61,8 +64,12 @@ export default function ChatInterface({
               <X className="h-12 w-12 text-muted-foreground" />
             </div>
             <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold text-foreground">User Disconnected</h2>
-              <p className="text-muted-foreground">The person you were chatting with has left.</p>
+              <h2 className="text-2xl font-bold text-foreground">
+                User Disconnected
+              </h2>
+              <p className="text-muted-foreground">
+                The person you were chatting with has left.
+              </p>
             </div>
             <Button
               onClick={onNext}
@@ -101,5 +108,5 @@ export default function ChatInterface({
         </>
       )}
     </div>
-  )
+  );
 }

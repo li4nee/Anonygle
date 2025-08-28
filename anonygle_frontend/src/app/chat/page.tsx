@@ -26,7 +26,7 @@ export default function ChatPage() {
     myStream,
     closeConnection,
     initPeerConnection,
-    resetPeer
+    resetPeer,
   } = useWebRTC();
 
   // Refs for video elements
@@ -92,14 +92,14 @@ export default function ChatPage() {
       const ans = await createAnswer(offer);
       if (ans) socket?.emit("peer:nego:done", { ans });
     },
-    [socket, createAnswer]
+    [socket, createAnswer],
   );
 
   const handleNegoNeedFinal = useCallback(
     async ({ answer }: { answer: RTCSessionDescriptionInit }) => {
       await handleIncommingAnswer(answer);
     },
-    [handleIncommingAnswer]
+    [handleIncommingAnswer],
   );
 
   useEffect(() => {
@@ -218,7 +218,7 @@ export default function ChatPage() {
                     status === "waiting" && "bg-yellow-500 animate-pulse",
                     status === "connected" && "bg-green-500 glow-red",
                     status === "error" && "bg-destructive glow-red-strong",
-                    status === "disconnected" && "bg-muted-foreground"
+                    status === "disconnected" && "bg-muted-foreground",
                   )}
                 />
                 <span className="text-foreground font-medium text-sm">
@@ -241,7 +241,10 @@ export default function ChatPage() {
 
               {status === "connected" && (
                 <div className="absolute bottom-4 left-4">
-                  <VideoControls myStream={myStream} remoteStream={remoteStream} />
+                  <VideoControls
+                    myStream={myStream}
+                    remoteStream={remoteStream}
+                  />
                 </div>
               )}
             </div>
