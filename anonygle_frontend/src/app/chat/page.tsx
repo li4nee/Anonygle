@@ -24,8 +24,9 @@ export default function ChatPage() {
     handleIncommingAnswer,
     remoteStream,
     myStream,
-    resetPeer,
+    closeConnection,
     initPeerConnection,
+    resetPeer
   } = useWebRTC();
 
   // Refs for video elements
@@ -53,7 +54,7 @@ export default function ChatPage() {
   };
 
   const disconnectChat = async () => {
-    await resetPeer();
+    await closeConnection();
     await initPeerConnection();
     socket?.emit("disconnect-match-making");
     setMessages([]);
@@ -61,7 +62,7 @@ export default function ChatPage() {
   };
 
   const nextChat = async () => {
-    await resetPeer();
+    await closeConnection();
     await initPeerConnection();
     socket?.emit("next-match-making");
     setMessages([]);

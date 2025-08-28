@@ -19,7 +19,8 @@ type WebRTCContextType = {
   handleIncommingAnswer: (answer: RTCSessionDescriptionInit) => Promise<void>;
   myStream: MediaStream | null;
   remoteStream: MediaStream | null;
-  resetPeer: () => Promise<void>;
+  closeConnection: () => Promise<void>;
+  resetPeer: () => Promise<void>; 
   initPeerConnection: () => Promise<void>;
 };
 
@@ -98,16 +99,27 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
     return newPeer;
   }, [socket]);
 
-  // Reset peer connection (close old one, clear streams)
   const resetPeer = useCallback(async () => {
     if (peer) {
       peer.close();
     }
     setPeer(null);
-    setMyStream(null);
+    // Do NOT clear local stream here, so your camera stays live
     setRemoteStream(null);
     remoteDescriptionSet.current = false;
   }, [peer]);
+
+  const stopLocalStream = useCallback(() => {
+    if (myStream) {
+      myStream.getTracks().forEach((track) => track.stop());
+    }
+    setMyStream(null);
+  }, [myStream]);
+
+  const closeConnection = useCallback(async () => {
+    await resetPeer();
+    stopLocalStream();
+  }, [resetPeer, stopLocalStream]);
 
   // Initialization to create peer connection on demand
   const initPeerConnection = useCallback(async () => {
@@ -202,6 +214,7 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         handleIncommingAnswer,
         myStream,
         remoteStream,
+        closeConnection,
         resetPeer,
         initPeerConnection,
       }}
