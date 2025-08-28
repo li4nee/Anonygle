@@ -12,8 +12,8 @@ Built with Socket.io, WebRTC, Next.js, and NestJS for seamless real-time video c
 3. Run the app and start chatting anonymously!
 
 ## Features to Add
-- Reporting system for admins  
-- Peer-to-peer screen sharing   
-- Interest-based matchups
+- Interest-based matchups 
+- Peer-to-peer screen sharing
+- Automatic bans for inappropriate behavior
 
 
