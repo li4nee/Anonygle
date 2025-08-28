@@ -1,23 +1,23 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Loader2, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react";
+import { Loader2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface WaitingScreenProps {
-  onCancel: () => void
+  onCancel: () => void;
 }
 
 export function WaitingScreen({ onCancel }: WaitingScreenProps) {
-  const [dots, setDots] = useState("")
+  const [dots, setDots] = useState("");
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setDots((prev) => (prev.length >= 3 ? "" : prev + "."))
-    }, 500)
+      setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
+    }, 500);
 
-    return () => clearInterval(interval)
-  }, [])
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center h-full p-6 space-y-6 bg-gradient-to-br from-background to-card">
@@ -27,7 +27,9 @@ export function WaitingScreen({ onCancel }: WaitingScreenProps) {
       </div>
 
       <div className="text-center space-y-2">
-        <h3 className="text-xl font-semibold text-foreground">Finding someone to chat with{dots}</h3>
+        <h3 className="text-xl font-semibold text-foreground">
+          Finding someone to chat with{dots}
+        </h3>
         <p className="text-muted-foreground">This may take a moment</p>
       </div>
 
@@ -40,5 +42,5 @@ export function WaitingScreen({ onCancel }: WaitingScreenProps) {
         Cancel
       </Button>
     </div>
-  )
+  );
 }

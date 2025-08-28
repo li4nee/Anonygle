@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import { User, VideoOff } from "lucide-react"
+import { User, VideoOff } from "lucide-react";
 
 interface VideoPlaceholderProps {
-  type: "local" | "remote"
-  userName?: string
+  type: "local" | "remote";
+  userName?: string;
 }
 
 export function VideoPlaceholder({ type, userName }: VideoPlaceholderProps) {
@@ -18,8 +18,10 @@ export function VideoPlaceholder({ type, userName }: VideoPlaceholderProps) {
           <VideoOff className="h-4 w-4" />
           <span className="text-sm">Camera off</span>
         </div>
-        <p className="text-foreground font-medium">{type === "local" ? "You" : userName || "Anonymous User"}</p>
+        <p className="text-foreground font-medium">
+          {type === "local" ? "You" : userName || "Anonymous User"}
+        </p>
       </div>
     </div>
-  )
+  );
 }

@@ -14,13 +14,13 @@ type WebRTCContextType = {
   peer: RTCPeerConnection | null;
   createOffer: () => Promise<RTCSessionDescriptionInit | null>;
   createAnswer: (
-    offer: RTCSessionDescriptionInit
+    offer: RTCSessionDescriptionInit,
   ) => Promise<RTCSessionDescriptionInit | undefined>;
   handleIncommingAnswer: (answer: RTCSessionDescriptionInit) => Promise<void>;
   myStream: MediaStream | null;
   remoteStream: MediaStream | null;
   closeConnection: () => Promise<void>;
-  resetPeer: () => Promise<void>; 
+  resetPeer: () => Promise<void>;
   initPeerConnection: () => Promise<void>;
 };
 
@@ -149,7 +149,7 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
       await peer.setLocalDescription(new RTCSessionDescription(answer));
       return answer;
     },
-    [peer]
+    [peer],
   );
 
   const handleIncommingAnswer = useCallback(
@@ -159,11 +159,11 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         await peer.setRemoteDescription(new RTCSessionDescription(answer));
       else
         console.warn(
-          "Remote description already set, ignoring incoming answer"
+          "Remote description already set, ignoring incoming answer",
         );
       remoteDescriptionSet.current = true;
     },
-    [peer]
+    [peer],
   );
 
   const addIceCandidate = useCallback(
@@ -175,7 +175,7 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         console.error("Error adding ICE candidate:", error);
       }
     },
-    [peer]
+    [peer],
   );
 
   useEffect(() => {
@@ -184,7 +184,7 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
     }) => {
       if (!remoteDescriptionSet.current)
         return console.warn(
-          "Cannot add ICE candidate before remote description is set"
+          "Cannot add ICE candidate before remote description is set",
         );
       const { candidate } = data;
       if (!candidate) return;
