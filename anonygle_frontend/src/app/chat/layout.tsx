@@ -1,5 +1,5 @@
-import { SocketProvider } from "../../../context/socket.context";
-import { WebRTCProvider } from "../../../context/webRtc.context";
+import { WebRTCProvider } from "@/context/webrtc.context";
+import { SocketProvider } from "../../context/socket.context";
 export default function RootLayout({
   children,
 }: Readonly<{

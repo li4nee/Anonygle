@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Video } from "lucide-react";
-import Header from "../../components/header";
-import HeroSection from "../../components/herosection";
+import Header from "../components/components/header";
+import HeroSection from "../components/components/herosection";
 // import FeaturesSection from "../../components/features";
-import AboutSection from "../../components/aboutsection";
-import ExtraFeaturesSection from "../../components/extraFeatures";
-import ExtraSafetySection from "../../components/safetySection";
+import AboutSection from "../components/components/aboutsection";
+import ExtraFeaturesSection from "../components/components/extraFeatures";
+import ExtraSafetySection from "../components/components/safetySection";
 import Link from "next/link";
 
 const Index = () => {

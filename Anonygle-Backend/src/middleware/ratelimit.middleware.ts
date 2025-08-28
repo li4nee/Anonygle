@@ -33,19 +33,6 @@ export class RateLimitMiddleware implements NestMiddleware {
       return next();
     } catch (rateLimiterRes) {
       let blockDuration = globalSettings.RATE_LIMIT.BLOCK_DURATION;
-      // If the user has exceeded the rate limit, we will block them for a certain amount of time
-      // The block duration will increase based on the number of times the user has exceeded the rate limit
-      // If the user has exceeded the rate limit more than 5 times, we will block them for 1 day
-      // const retryCount = rateLimiterRes.consumedPoints - globalSettings.RATE_LIMIT.REQUEST_LIMIT;
-      // if (retryCount >= globalSettings.RATE_LIMIT.MAX_RATE_LIMIT_OFFEND)
-      //     blockDuration = globalSettings.RATE_LIMIT.MAX_RATE_LIMIT_BLOCK_DURATION;
-      // else if (retryCount >= 5)
-      //     blockDuration *= 10;
-      // else if (retryCount >= 3)
-      //     blockDuration *= 5;
-      // else if (retryCount >= 2)
-      //     blockDuration *= 2;
-
       // Block the user for the specified duration
       await this.rateLimiter.block(ip, blockDuration);
       return res.status(429).json({

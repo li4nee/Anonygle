@@ -14,11 +14,14 @@ type WebRTCContextType = {
   peer: RTCPeerConnection | null;
   createOffer: () => Promise<RTCSessionDescriptionInit | null>;
   createAnswer: (
-    offer: RTCSessionDescriptionInit,
+    offer: RTCSessionDescriptionInit
   ) => Promise<RTCSessionDescriptionInit | undefined>;
   handleIncommingAnswer: (answer: RTCSessionDescriptionInit) => Promise<void>;
   myStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  closeConnection: () => Promise<void>;
+  resetPeer: () => Promise<void>; 
+  initPeerConnection: () => Promise<void>;
 };
 
 const WebRTCContext = createContext<WebRTCContextType | null>(null);
@@ -36,28 +39,22 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
       video: true,
     });
     setMyStream(stream);
-    const peer = new RTCPeerConnection({
+
+    const newPeer = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
         { urls: "stun:stun2.l.google.com:19302" },
       ],
     });
-    const resetPeer = () => {
-      if (peer) {
-        peer.close();
-      }
-      setPeer(null);
-      setMyStream(null);
-      setRemoteStream(null);
-      remoteDescriptionSet.current = false;
-    };
-    peer.onicecandidate = (event) => {
+
+    newPeer.onicecandidate = (event) => {
       if (event.candidate) {
         socket?.emit("ice-candidate", { candidate: event.candidate });
       }
     };
-    peer.ontrack = (event) => {
+
+    newPeer.ontrack = (event) => {
       const remoteStream = event.streams[0];
       if (remoteStream) {
         setRemoteStream(remoteStream);
@@ -65,48 +62,75 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         console.error("No remote stream found");
       }
     };
-    peer.onconnectionstatechange = () => {
+
+    newPeer.onconnectionstatechange = () => {
       if (
-        peer?.connectionState === "disconnected" ||
-        peer?.connectionState === "closed"
+        newPeer.connectionState === "disconnected" ||
+        newPeer.connectionState === "closed"
       ) {
         resetPeer();
       }
     };
-    peer.oniceconnectionstatechange = () => {
+
+    newPeer.oniceconnectionstatechange = () => {
       if (
-        peer?.iceConnectionState === "disconnected" ||
-        peer?.iceConnectionState === "closed"
+        newPeer.iceConnectionState === "disconnected" ||
+        newPeer.iceConnectionState === "closed"
       ) {
         resetPeer();
       }
     };
-    peer.onicegatheringstatechange = () => {
+
+    newPeer.onicegatheringstatechange = () => {
       if (
-        peer?.iceGatheringState === "complete" &&
+        newPeer.iceGatheringState === "complete" &&
         !remoteDescriptionSet.current
       ) {
         console.warn("ICE gathering complete but remote description not set");
       }
     };
+
     if (stream) {
       stream.getTracks().forEach((track) => {
-        peer.addTrack(track, stream);
+        newPeer.addTrack(track, stream);
       });
     }
-    return peer;
+
+    return newPeer;
   }, [socket]);
 
-  useEffect(() => {
-    const setupPeer = async () => {
-      if (typeof window !== "undefined") {
-        const newPeer = await createPeerConnection();
-        setPeer(newPeer);
-      }
-    };
+  const resetPeer = useCallback(async () => {
+    if (peer) {
+      peer.close();
+    }
+    setPeer(null);
+    // Do NOT clear local stream here, so your camera stays live
+    setRemoteStream(null);
+    remoteDescriptionSet.current = false;
+  }, [peer]);
 
-    setupPeer();
+  const stopLocalStream = useCallback(() => {
+    if (myStream) {
+      myStream.getTracks().forEach((track) => track.stop());
+    }
+    setMyStream(null);
+  }, [myStream]);
+
+  const closeConnection = useCallback(async () => {
+    await resetPeer();
+    stopLocalStream();
+  }, [resetPeer, stopLocalStream]);
+
+  // Initialization to create peer connection on demand
+  const initPeerConnection = useCallback(async () => {
+    const newPeer = await createPeerConnection();
+    setPeer(newPeer);
   }, [createPeerConnection]);
+
+  // Setup peer connection once at mount
+  useEffect(() => {
+    initPeerConnection();
+  }, [initPeerConnection]);
 
   const createOffer = useCallback(async () => {
     if (!peer) return null;
@@ -125,7 +149,7 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
       await peer.setLocalDescription(new RTCSessionDescription(answer));
       return answer;
     },
-    [peer],
+    [peer]
   );
 
   const handleIncommingAnswer = useCallback(
@@ -135,11 +159,11 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         await peer.setRemoteDescription(new RTCSessionDescription(answer));
       else
         console.warn(
-          "Remote description already set, ignoring incoming answer",
+          "Remote description already set, ignoring incoming answer"
         );
       remoteDescriptionSet.current = true;
     },
-    [peer],
+    [peer]
   );
 
   const addIceCandidate = useCallback(
@@ -151,7 +175,7 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         console.error("Error adding ICE candidate:", error);
       }
     },
-    [peer],
+    [peer]
   );
 
   useEffect(() => {
@@ -160,7 +184,7 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
     }) => {
       if (!remoteDescriptionSet.current)
         return console.warn(
-          "Cannot add ICE candidate before remote description is set",
+          "Cannot add ICE candidate before remote description is set"
         );
       const { candidate } = data;
       if (!candidate) return;
@@ -190,6 +214,9 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         handleIncommingAnswer,
         myStream,
         remoteStream,
+        closeConnection,
+        resetPeer,
+        initPeerConnection,
       }}
     >
       {children}

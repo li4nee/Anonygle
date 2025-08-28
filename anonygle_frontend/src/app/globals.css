@@ -78,7 +78,7 @@
   --sidebar-accent-foreground: oklch(0.9 0 0);
   --sidebar-border: oklch(0.2 0 0);
   --sidebar-ring: oklch(0.6 0.25 0);
-  
+
   /* Custom red glow colors */
   --glow-red: oklch(0.6 0.25 0);
   --glow-red-dark: oklch(0.4 0.25 0);
@@ -118,7 +118,7 @@
   --sidebar-accent-foreground: oklch(0.9 0 0);
   --sidebar-border: oklch(0.2 0 0);
   --sidebar-ring: oklch(0.6 0.25 0);
-  
+
   /* Custom red glow colors */
   --glow-red: oklch(0.6 0.25 0);
   --glow-red-dark: oklch(0.4 0.25 0);
@@ -137,26 +137,27 @@
   .glow-red {
     box-shadow: 0 0 20px oklch(var(--glow-red) / 0.3);
   }
-  
+
   .glow-red-strong {
     box-shadow: 0 0 30px oklch(var(--glow-red) / 0.5), 0 0 60px oklch(var(--glow-red) / 0.2);
   }
-  
+
   .text-glow {
     text-shadow: 0 0 20px oklch(var(--glow-red) / 0.5);
   }
-  
+
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
-  
+
   .animate-pulse-slow {
     animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px);
   }
   50% {
@@ -165,14 +166,13 @@
 }
 
 .bg-grid {
-  background-image: 
-    linear-gradient(rgba(255, 0, 0, 0.1) 1px, transparent 1px),
+  background-image: linear-gradient(rgba(255, 0, 0, 0.1) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 0, 0, 0.1) 1px, transparent 1px);
   background-size: 50px 50px;
 }
 
 .gradient-mesh {
   background: radial-gradient(circle at 20% 50%, oklch(var(--glow-red) / 0.1) 0%, transparent 50%),
-              radial-gradient(circle at 80% 20%, oklch(var(--glow-red) / 0.15) 0%, transparent 50%),
-              radial-gradient(circle at 40% 80%, oklch(var(--glow-red) / 0.1) 0%, transparent 50%);
+    radial-gradient(circle at 80% 20%, oklch(var(--glow-red) / 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 40% 80%, oklch(var(--glow-red) / 0.1) 0%, transparent 50%);
 }
