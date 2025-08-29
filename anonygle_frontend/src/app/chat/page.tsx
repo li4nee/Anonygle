@@ -10,6 +10,7 @@ import ChatInterface from "@/components/components/chat/chatinterface";
 import { useWebRTC } from "@/context/webrtc.context";
 import { VideoPlaceholder } from "@/components/components/webrtc/video-placeholder";
 import { VideoControls } from "@/components/components/webrtc/videocontrols";
+import VideoOffErrorPage from "@/components/components/webrtc/videoOff";
 
 export default function ChatPage() {
   const { socket } = useSocket();
@@ -27,6 +28,7 @@ export default function ChatPage() {
     closeConnection,
     initPeerConnection,
     resetPeer,
+    mediaOffError
   } = useWebRTC();
 
   // Refs for video elements
@@ -181,6 +183,8 @@ export default function ChatPage() {
           </h1>
           <p className="text-muted-foreground">Anonymous video chat platform</p>
         </div>
+
+        {mediaOffError && <VideoOffErrorPage/>}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           <div className="w-full flex flex-col">

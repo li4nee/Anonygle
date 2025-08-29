@@ -22,6 +22,7 @@ type WebRTCContextType = {
   closeConnection: () => Promise<void>;
   resetPeer: () => Promise<void>;
   initPeerConnection: () => Promise<void>;
+  mediaOffError?: Error;
 };
 
 const WebRTCContext = createContext<WebRTCContextType | null>(null);
@@ -31,72 +32,78 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const { socket } = useSocket();
+  const [mediaOffError, setMediaOffError] = useState<Error | undefined>(undefined);
   const remoteDescriptionSet = useRef(false);
 
   const createPeerConnection = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: true,
-    });
-    setMyStream(stream);
-
-    const newPeer = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" },
-      ],
-    });
-
-    newPeer.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket?.emit("ice-candidate", { candidate: event.candidate });
-      }
-    };
-
-    newPeer.ontrack = (event) => {
-      const remoteStream = event.streams[0];
-      if (remoteStream) {
-        setRemoteStream(remoteStream);
-      } else {
-        console.error("No remote stream found");
-      }
-    };
-
-    newPeer.onconnectionstatechange = () => {
-      if (
-        newPeer.connectionState === "disconnected" ||
-        newPeer.connectionState === "closed"
-      ) {
-        resetPeer();
-      }
-    };
-
-    newPeer.oniceconnectionstatechange = () => {
-      if (
-        newPeer.iceConnectionState === "disconnected" ||
-        newPeer.iceConnectionState === "closed"
-      ) {
-        resetPeer();
-      }
-    };
-
-    newPeer.onicegatheringstatechange = () => {
-      if (
-        newPeer.iceGatheringState === "complete" &&
-        !remoteDescriptionSet.current
-      ) {
-        console.warn("ICE gathering complete but remote description not set");
-      }
-    };
-
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        newPeer.addTrack(track, stream);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
       });
+      setMyStream(stream);
+      setMediaOffError(undefined);
+  
+      const newPeer = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun2.l.google.com:19302" },
+        ],
+      });
+  
+      newPeer.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket?.emit("ice-candidate", { candidate: event.candidate });
+        }
+      };
+  
+      newPeer.ontrack = (event) => {
+        const remoteStream = event.streams[0];
+        if (remoteStream) {
+          setRemoteStream(remoteStream);
+        } else {
+          console.error("No remote stream found");
+        }
+      };
+  
+      newPeer.onconnectionstatechange = () => {
+        if (
+          newPeer.connectionState === "disconnected" ||
+          newPeer.connectionState === "closed"
+        ) {
+          resetPeer();
+        }
+      };
+  
+      newPeer.oniceconnectionstatechange = () => {
+        if (
+          newPeer.iceConnectionState === "disconnected" ||
+          newPeer.iceConnectionState === "closed"
+        ) {
+          resetPeer();
+        }
+      };
+  
+      newPeer.onicegatheringstatechange = () => {
+        if (
+          newPeer.iceGatheringState === "complete" &&
+          !remoteDescriptionSet.current
+        ) {
+          console.warn("ICE gathering complete but remote description not set");
+        }
+      };
+  
+      if (stream) {
+        stream.getTracks().forEach((track) => {
+          newPeer.addTrack(track, stream);
+        });
+      }
+  
+      return newPeer;
+    } catch (error) {
+      setMediaOffError(error as Error);
     }
-
-    return newPeer;
   }, [socket]);
 
   const resetPeer = useCallback(async () => {
@@ -124,7 +131,8 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
   // Initialization to create peer connection on demand
   const initPeerConnection = useCallback(async () => {
     const newPeer = await createPeerConnection();
-    setPeer(newPeer);
+    if (newPeer)
+      setPeer(newPeer);
   }, [createPeerConnection]);
 
   // Setup peer connection once at mount
@@ -217,6 +225,7 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         closeConnection,
         resetPeer,
         initPeerConnection,
+        mediaOffError
       }}
     >
       {children}
