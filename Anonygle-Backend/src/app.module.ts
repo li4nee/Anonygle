@@ -6,13 +6,15 @@ import { AppData } from "./config/db.config";
 import { SharedModule } from "./shared/shared.module";
 import { RateLimitMiddleware } from "./middleware/ratelimit.middleware";
 import { WebsocketGateway } from "./websocket/websocket.gateway";
+import { SessionDetails } from "./entity/sessionDetails.entity";
+import { ChatPairing } from "./entity/chatParings.entity";
+import { ModerationReport } from "./entity/report.entity";
+import { AdminCredential } from "./entity/adminCredential.entity";
 
 @Module({
   imports: [
-    // Yo chai database ko configuration
     TypeOrmModule.forRoot(AppData),
-    // Yo chai database ko table haru ko configuration
-    TypeOrmModule.forFeature([]),
+    TypeOrmModule.forFeature([SessionDetails, ChatPairing, ModerationReport, AdminCredential]),
     SharedModule,
   ],
   providers: [AppService, WebsocketGateway],

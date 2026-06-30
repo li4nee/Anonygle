@@ -1,21 +1,21 @@
-import { Injectable, NestMiddleware } from "@nestjs/common";
+import { Injectable, NestMiddleware, OnModuleInit } from "@nestjs/common";
 import { Request, Response, NextFunction } from "express";
-import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
+import { RateLimiterRedis } from "rate-limiter-flexible";
 import { RedisService } from "src/shared/services/redis.service";
 import { globalSettings } from "src/config/settings.config";
 
 @Injectable()
-export class RateLimitMiddleware implements NestMiddleware {
+export class RateLimitMiddleware implements NestMiddleware, OnModuleInit {
   private rateLimiter: RateLimiterRedis;
 
-  constructor(private readonly redisService: RedisService) {
-    const client = this.redisService.getClient();
+  constructor(private readonly redisService: RedisService) {}
 
+  onModuleInit() {
     this.rateLimiter = new RateLimiterRedis({
-      storeClient: client,
+      storeClient: this.redisService.getClient(),
       keyPrefix: "rate_limit_global",
-      points: globalSettings.RATE_LIMIT.REQUEST_LIMIT, // Number of requests
-      duration: globalSettings.RATE_LIMIT.TIME_LIMIT, // Per Time unit
+      points: globalSettings.RATE_LIMIT.REQUEST_LIMIT,
+      duration: globalSettings.RATE_LIMIT.TIME_LIMIT,
       execEvenly: false,
     });
   }

@@ -1,7 +1,8 @@
-import { Column, JoinColumn, ManyToOne } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne } from "typeorm";
 import { GlobalEntity } from "./global.entity";
 import { SessionDetails } from "./sessionDetails.entity";
 
+@Entity()
 export class ChatPairing extends GlobalEntity {
   constructor() {
     super();

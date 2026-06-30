@@ -1,5 +1,9 @@
 import { DataSource, DataSourceOptions } from "typeorm";
 import { globalSettings } from "./settings.config";
+import { SessionDetails } from "src/entity/sessionDetails.entity";
+import { ChatPairing } from "src/entity/chatParings.entity";
+import { ModerationReport } from "src/entity/report.entity";
+import { AdminCredential } from "src/entity/adminCredential.entity";
 
 export const AppData: DataSourceOptions = {
   type: "postgres",
@@ -8,9 +12,9 @@ export const AppData: DataSourceOptions = {
   username: globalSettings.DB.USERNAME,
   password: globalSettings.DB.PASSWORD,
   database: globalSettings.DB.DATABASE,
-  entities: [],
-  synchronize: true,
-  migrations: ["../migrations/*.ts"],
+  entities: [SessionDetails, ChatPairing, ModerationReport, AdminCredential],
+  synchronize: globalSettings.WORK_ENVIRONMENT !== "PRODUCTION",
+  migrations: ["dist/migrations/*.js"],
   logging: false,
 };
 
