@@ -1,9 +1,10 @@
-import { Column, ManyToOne } from "typeorm";
+import { Column, Entity, ManyToOne } from "typeorm";
 import { GlobalEntity } from "./global.entity";
 import { SessionDetails } from "./sessionDetails.entity";
 import { ChatPairing } from "./chatParings.entity";
 import { REPORT_STATUS, TYPE_OF_REPORT } from "src/types/base.type";
 
+@Entity()
 export class ModerationReport extends GlobalEntity {
   constructor() {
     super();

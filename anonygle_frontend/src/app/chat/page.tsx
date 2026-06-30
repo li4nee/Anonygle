@@ -92,7 +92,7 @@ export default function ChatPage() {
   const handleNegoNeedIncomming = useCallback(
     async ({ offer }: { offer: RTCSessionDescriptionInit }) => {
       const ans = await createAnswer(offer);
-      if (ans) socket?.emit("peer:nego:done", { ans });
+      if (ans) socket?.emit("peer:nego:final", { answer: ans });
     },
     [socket, createAnswer],
   );
