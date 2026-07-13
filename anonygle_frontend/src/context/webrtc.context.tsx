@@ -22,6 +22,7 @@ type WebRTCContextType = {
   closeConnection: () => Promise<void>;
   resetPeer: () => Promise<void>;
   initPeerConnection: () => Promise<void>;
+  mediaOffError?: Error;
 };
 
 const WebRTCContext = createContext<WebRTCContextType | null>(null);
@@ -31,83 +32,97 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const { socket } = useSocket();
+  const [mediaOffError, setMediaOffError] = useState<Error | undefined>(undefined);
   const remoteDescriptionSet = useRef(false);
-
-  const createPeerConnection = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: true,
-    });
-    setMyStream(stream);
-
-    const newPeer = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" },
-      ],
-    });
-
-    newPeer.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket?.emit("ice-candidate", { candidate: event.candidate });
-      }
-    };
-
-    newPeer.ontrack = (event) => {
-      const remoteStream = event.streams[0];
-      if (remoteStream) {
-        setRemoteStream(remoteStream);
-      } else {
-        console.error("No remote stream found");
-      }
-    };
-
-    newPeer.onconnectionstatechange = () => {
-      if (
-        newPeer.connectionState === "disconnected" ||
-        newPeer.connectionState === "closed"
-      ) {
-        resetPeer();
-      }
-    };
-
-    newPeer.oniceconnectionstatechange = () => {
-      if (
-        newPeer.iceConnectionState === "disconnected" ||
-        newPeer.iceConnectionState === "closed"
-      ) {
-        resetPeer();
-      }
-    };
-
-    newPeer.onicegatheringstatechange = () => {
-      if (
-        newPeer.iceGatheringState === "complete" &&
-        !remoteDescriptionSet.current
-      ) {
-        console.warn("ICE gathering complete but remote description not set");
-      }
-    };
-
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        newPeer.addTrack(track, stream);
-      });
-    }
-
-    return newPeer;
+  // Ref always points to the live peer so event handlers never close over stale state
+  const peerRef = useRef<RTCPeerConnection | null>(null);
+  // Ref for socket so onicecandidate always uses the latest socket without re-creating the peer
+  const socketRef = useRef(socket);
+  useEffect(() => {
+    socketRef.current = socket;
   }, [socket]);
 
   const resetPeer = useCallback(async () => {
-    if (peer) {
-      peer.close();
+    if (peerRef.current) {
+      peerRef.current.close();
+      peerRef.current = null;
     }
     setPeer(null);
-    // Do NOT clear local stream here, so your camera stays live
     setRemoteStream(null);
     remoteDescriptionSet.current = false;
-  }, [peer]);
+  }, []);
+
+  const createPeerConnection = useCallback(async () => {
+    // Close any existing connection before creating a new one
+    if (peerRef.current) {
+      peerRef.current.close();
+      peerRef.current = null;
+      remoteDescriptionSet.current = false;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      setMyStream(stream);
+      setMediaOffError(undefined);
+
+      const newPeer = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun2.l.google.com:19302" },
+        ],
+      });
+
+      peerRef.current = newPeer;
+
+      newPeer.onicecandidate = (event) => {
+        if (event.candidate) {
+          // Use socketRef so this always sends on the live socket,
+          // even if the socket changed after this peer was created
+          socketRef.current?.emit("ice-candidate", { candidate: event.candidate });
+        }
+      };
+
+      newPeer.ontrack = (event) => {
+        const remoteStream = event.streams[0];
+        if (remoteStream) {
+          setRemoteStream(remoteStream);
+        }
+      };
+
+      newPeer.onconnectionstatechange = () => {
+        if (
+          newPeer.connectionState === "disconnected" ||
+          newPeer.connectionState === "closed"
+        ) {
+          // Only reset if this peer is still the active one
+          if (peerRef.current === newPeer) resetPeer();
+        }
+      };
+
+      newPeer.oniceconnectionstatechange = () => {
+        if (
+          newPeer.iceConnectionState === "disconnected" ||
+          newPeer.iceConnectionState === "closed"
+        ) {
+          if (peerRef.current === newPeer) resetPeer();
+        }
+      };
+
+      if (stream) {
+        stream.getTracks().forEach((track) => {
+          newPeer.addTrack(track, stream);
+        });
+      }
+
+      return newPeer;
+    } catch (error) {
+      setMediaOffError(error as Error);
+    }
+  }, [resetPeer]);
 
   const stopLocalStream = useCallback(() => {
     if (myStream) {
@@ -124,13 +139,14 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
   // Initialization to create peer connection on demand
   const initPeerConnection = useCallback(async () => {
     const newPeer = await createPeerConnection();
-    setPeer(newPeer);
+    if (newPeer) setPeer(newPeer);
   }, [createPeerConnection]);
 
-  // Setup peer connection once at mount
+  // Setup peer connection once at mount only
   useEffect(() => {
     initPeerConnection();
-  }, [initPeerConnection]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const createOffer = useCallback(async () => {
     if (!peer) return null;
@@ -217,6 +233,7 @@ export const WebRTCProvider = ({ children }: { children: React.ReactNode }) => {
         closeConnection,
         resetPeer,
         initPeerConnection,
+        mediaOffError
       }}
     >
       {children}

@@ -13,7 +13,7 @@ export const globalSettings = {
     PORT: Number(process.env.DB_PORT) || 5432,
     USERNAME: process.env.DB_USERNAME || "postgres",
     PASSWORD: process.env.DB_PASSWORD || "new_password",
-    DATABASE: process.env.DB_DATABASE || "selfhosteasy",
+    DATABASE: process.env.DB_DATABASE || "anonygle",
   },
   RATE_LIMIT: {
     REQUEST_LIMIT: Number(process.env.REQUEST_LIMIT) || 100,

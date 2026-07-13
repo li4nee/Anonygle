@@ -35,11 +35,22 @@ export class WebsocketGateway implements OnModuleInit, OnGatewayDisconnect {
     });
   }
 
+  private readonly MAX_MESSAGE_LENGTH = 5000;
+
   @SubscribeMessage("message")
   async onNewMessageEvent(
     @MessageBody() body: string,
     @ConnectedSocket() client: Socket,
   ) {
+    if (typeof body !== "string" || body.trim().length === 0) {
+      return client.emit("error", { message: "Invalid message" });
+    }
+    if (body.length > this.MAX_MESSAGE_LENGTH) {
+      return client.emit("error", { message: "Message too long" });
+    }
+
+    const sanitized = body.replace(/</g, "&lt;").replace(/>/g, "&gt;").trim();
+
     const roomId = await this.redisClient.hGet(this.clientToRoomKey, client.id);
     if (!roomId) {
       this.logEvents("message", client, "You are not in a room", true);
@@ -53,7 +64,7 @@ export class WebsocketGateway implements OnModuleInit, OnGatewayDisconnect {
       this.logEvents("message", client, "No other members in the room", true);
       return client.emit("error", { message: "No other members in the room" });
     }
-    this.Server.to(otherMemberId).emit("new-message", { message: body });
+    this.Server.to(otherMemberId).emit("new-message", { message: sanitized });
     return this.logEvents(
       "message",
       client,
@@ -150,10 +161,13 @@ export class WebsocketGateway implements OnModuleInit, OnGatewayDisconnect {
   }
 
   @SubscribeMessage("ice-candidate")
-  async handleIceCandidate(client: Socket, candidate: RTCIceCandidateInit) {
+  async handleIceCandidate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { candidate: RTCIceCandidateInit },
+  ) {
     const partnerId = await this.checkForRoomAndReturnPartnerId(client);
     if (partnerId) {
-      this.Server.to(partnerId).emit("ice-candidate", candidate);
+      this.Server.to(partnerId).emit("ice-candidate", { candidate: data.candidate });
     }
   }
 

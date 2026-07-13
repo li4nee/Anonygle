@@ -1,6 +1,7 @@
-import { Column } from "typeorm";
+import { Column, Entity } from "typeorm";
 import { GlobalEntity } from "./global.entity";
 
+@Entity()
 export class SessionDetails extends GlobalEntity {
   constructor() {
     super();
